@@ -19,8 +19,12 @@ import {
 } from '@backstage/backend-plugin-api';
 import { catalogProcessingExtensionPoint } from '@backstage/plugin-catalog-node/alpha';
 import { eventsServiceRef } from '@backstage/plugin-events-node';
+import { notificationService } from '@backstage/plugin-notifications-node';
+import { CatalogClient } from '@backstage/catalog-client';
 
 import { ScaffolderRelationEntityProcessor } from './ScaffolderRelationEntityProcessor';
+import { handleTemplateUpdateNotifications } from './templateVersionUtils';
+import { TEMPLATE_VERSION_UPDATED_TOPIC } from './constants';
 
 /**
  * Catalog processor that adds link relation between scaffolder templates and their generated entities
@@ -36,26 +40,39 @@ export const catalogModuleScaffolderRelationProcessor = createBackendModule({
         catalog: catalogProcessingExtensionPoint,
         logger: coreServices.logger,
         events: eventsServiceRef,
+        notifications: notificationService,
+        auth: coreServices.auth,
+        discovery: coreServices.discovery,
       },
-      async init({ catalog, logger, events }) {
+      async init({ catalog, logger, events, notifications, auth, discovery }) {
         logger.debug(
           'Registering the scaffolder-relation-processor catalog module',
         );
+
+        const catalogClient = new CatalogClient({ discoveryApi: discovery });
 
         // Subscribe to relationProcessor.template:version_updated events
         if (events) {
           await events.subscribe({
             id: 'scaffolder-relation-processor',
-            topics: ['relationProcessor.template:version_updated'],
+            topics: [TEMPLATE_VERSION_UPDATED_TOPIC],
             async onEvent(params) {
               const payload = params.eventPayload as {
                 entityRef: string;
                 previousVersion: string;
                 currentVersion: string;
               };
+
               logger.info(
                 `Received template update event for ${payload.entityRef}: ` +
                   `${payload.previousVersion} -> ${payload.currentVersion}`,
+              );
+
+              handleTemplateUpdateNotifications(
+                catalogClient,
+                notifications,
+                auth,
+                payload,
               );
             },
           });
