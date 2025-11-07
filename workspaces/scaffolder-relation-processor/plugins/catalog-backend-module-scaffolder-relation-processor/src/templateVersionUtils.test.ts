@@ -36,6 +36,9 @@ describe('templateVersionUtils', () => {
   let mockCatalogClient: jest.Mocked<CatalogClient>;
   let mockNotificationService: jest.Mocked<NotificationService>;
   const mockAuthService = mockServices.auth();
+  const mockLogger = mockServices.logger.mock();
+  const mockUrlReader = mockServices.urlReader.mock();
+  const mockConfig = mockServices.rootConfig();
   const mockProcessorConfig = {
     notifications: {
       templateUpdate: {
@@ -110,6 +113,9 @@ describe('templateVersionUtils', () => {
         mockAuthService,
         mockProcessorConfig,
         payload,
+        mockLogger,
+        mockConfig,
+        mockUrlReader,
       );
 
       expect(mockCatalogClient.getEntities).toHaveBeenCalledWith(
@@ -192,6 +198,9 @@ describe('templateVersionUtils', () => {
         mockAuthService,
         mockProcessorConfig,
         payload,
+        mockLogger,
+        mockConfig,
+        mockUrlReader,
       );
 
       // Should send 2 notifications (one to each owner)
@@ -226,6 +235,9 @@ describe('templateVersionUtils', () => {
         mockAuthService,
         mockProcessorConfig,
         payload,
+        mockLogger,
+        mockConfig,
+        mockUrlReader,
       );
 
       // Should not send any notifications
@@ -243,6 +255,9 @@ describe('templateVersionUtils', () => {
         mockAuthService,
         mockProcessorConfig,
         payload,
+        mockLogger,
+        mockConfig,
+        mockUrlReader,
       );
 
       expect(mockNotificationService.send).not.toHaveBeenCalled();
@@ -266,6 +281,9 @@ describe('templateVersionUtils', () => {
         mockAuthService,
         mockProcessorConfig,
         payload,
+        mockLogger,
+        mockConfig,
+        mockUrlReader,
       );
 
       expect(mockNotificationService.send).toHaveBeenCalledTimes(2);
@@ -320,6 +338,9 @@ describe('templateVersionUtils', () => {
         mockAuthService,
         mockProcessorConfig,
         payload,
+        mockLogger,
+        mockConfig,
+        mockUrlReader,
       );
 
       const calls = mockNotificationService.send.mock.calls;
@@ -359,6 +380,9 @@ describe('templateVersionUtils', () => {
         mockAuthService,
         mockProcessorConfig,
         payload,
+        mockLogger,
+        mockConfig,
+        mockUrlReader,
       );
 
       expect(mockNotificationService.send).toHaveBeenCalledWith({

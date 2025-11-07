@@ -45,6 +45,7 @@ export const catalogModuleScaffolderRelationProcessor = createBackendModule({
         notifications: notificationService,
         auth: coreServices.auth,
         discovery: coreServices.discovery,
+        urlReader: coreServices.urlReader,
       },
       async init({
         catalog,
@@ -54,6 +55,7 @@ export const catalogModuleScaffolderRelationProcessor = createBackendModule({
         notifications,
         auth,
         discovery,
+        urlReader,
       }) {
         logger.debug(
           'Registering the scaffolder-relation-processor catalog module',
@@ -86,6 +88,9 @@ export const catalogModuleScaffolderRelationProcessor = createBackendModule({
                 auth,
                 processorConfig,
                 payload,
+                logger,
+                config,
+                urlReader,
               );
             },
           });
