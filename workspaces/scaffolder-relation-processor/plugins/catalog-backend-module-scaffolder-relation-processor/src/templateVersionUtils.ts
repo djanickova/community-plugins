@@ -33,7 +33,12 @@ import {
 import { ScaffolderRelationProcessorConfig } from './types';
 import type { Config } from '@backstage/config';
 import { LoggerService, UrlReaderService } from '@backstage/backend-plugin-api';
-import { logTemplateDiff } from './pullRequestUtils';
+import {
+  createTemplateSyncPullRequest,
+  extractTemplateSourceUrl,
+  fetchRepoFiles,
+} from './pullRequestUtils';
+import { buildGitHubTreeUrl, parseGitHubUrl } from './providers/github';
 
 /**
  * Cache structure for storing template version information
@@ -210,15 +215,52 @@ export async function handleTemplateUpdateNotifications(
         'metadata.title',
         'metadata.annotations',
         'relations',
+        'spec',
       ],
     },
     { token },
   );
 
-  // Log diffs for each scaffolded entity
+  // Create pull requests to sync template changes for each scaffolded entity
   if (templateEntity) {
+    const templateSourceUrl = extractTemplateSourceUrl(templateEntity);
+    let templateFiles: Map<string, string> | undefined;
+
+    if (templateSourceUrl) {
+      const templateUrlInfo = parseGitHubUrl(templateSourceUrl);
+      if (templateUrlInfo) {
+        const templateBranch = 'main';
+        const templateUrl = buildGitHubTreeUrl(
+          templateUrlInfo.owner,
+          templateUrlInfo.repo,
+          templateBranch,
+          templateUrlInfo.path,
+        );
+
+        try {
+          templateFiles = await fetchRepoFiles(urlReader, templateUrl);
+        } catch (error) {
+          logger.error(
+            `Error fetching template files for ${templateEntity.metadata.name}: ${error}`,
+          );
+        }
+      }
+    }
+
+    // Process each scaffolded entity with pre-fetched template files
     for (const entity of scaffoldedEntities.items) {
-      await logTemplateDiff(logger, urlReader, config, templateEntity, entity);
+      await createTemplateSyncPullRequest(
+        logger,
+        urlReader,
+        config,
+        catalogClient,
+        templateEntity,
+        entity,
+        payload.previousVersion,
+        payload.currentVersion,
+        token,
+        templateFiles,
+      );
     }
   }
 
