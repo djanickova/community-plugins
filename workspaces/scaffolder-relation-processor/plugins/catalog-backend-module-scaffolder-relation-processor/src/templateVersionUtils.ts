@@ -32,6 +32,13 @@ import {
 } from './constants';
 import { ScaffolderRelationProcessorConfig } from './types';
 import type { Config } from '@backstage/config';
+import { LoggerService, UrlReaderService } from '@backstage/backend-plugin-api';
+import {
+  createTemplateSyncPullRequest,
+  extractTemplateSourceUrl,
+  fetchRepoFiles,
+} from './pullRequestUtils';
+import { buildGitHubTreeUrl, parseGitHubUrl } from './providers/github';
 
 /**
  * Cache structure for storing template version information
@@ -168,6 +175,9 @@ async function sendNotificationsToOwners(
  * @param auth - Auth service to get authentication token
  * @param processorConfig - Parsed scaffolder relation processor config
  * @param payload - Template update payload containing entity ref and version info
+ * @param logger - Logger service for logging diffs
+ * @param config - Backstage config
+ * @param urlReader - UrlReaderService for fetching repository files
  *
  * @internal
  */
@@ -181,10 +191,18 @@ export async function handleTemplateUpdateNotifications(
     previousVersion: string;
     currentVersion: string;
   },
+  logger: LoggerService,
+  config: Config,
+  urlReader: UrlReaderService,
 ): Promise<void> {
   const { token } = await auth.getPluginRequestToken({
     onBehalfOf: await auth.getOwnServiceCredentials(),
     targetPluginId: 'catalog',
+  });
+
+  // Get the template entity to extract source URL
+  const templateEntity = await catalogClient.getEntityByRef(payload.entityRef, {
+    token,
   });
 
   const scaffoldedEntities = await catalogClient.getEntities(
@@ -195,11 +213,66 @@ export async function handleTemplateUpdateNotifications(
         'metadata.namespace',
         'metadata.name',
         'metadata.title',
+        'metadata.annotations',
         'relations',
+        'spec',
       ],
     },
     { token },
   );
+
+  // Create pull requests to sync template changes for each scaffolded entity
+  if (templateEntity) {
+    const templateSourceUrl = extractTemplateSourceUrl(templateEntity);
+    if (!templateSourceUrl) {
+      logger.warn(
+        `No template source URL found for template ${templateEntity.metadata.name}. Skipping PR creation.`,
+      );
+      return;
+    }
+
+    const templateUrlInfo = parseGitHubUrl(templateSourceUrl);
+    if (!templateUrlInfo) {
+      logger.warn(
+        `Could not parse template URL for ${templateEntity.metadata.name}. Skipping PR creation.`,
+      );
+      return;
+    }
+
+    const templateBranch = 'main';
+    const templateUrl = buildGitHubTreeUrl(
+      templateUrlInfo.owner,
+      templateUrlInfo.repo,
+      templateBranch,
+      templateUrlInfo.path,
+    );
+
+    let templateFiles: Map<string, string>;
+    try {
+      templateFiles = await fetchRepoFiles(urlReader, templateUrl);
+    } catch (error) {
+      logger.error(
+        `Error fetching template files for ${templateEntity.metadata.name}: ${error}. Skipping PR creation.`,
+      );
+      return;
+    }
+
+    // Process each scaffolded entity with pre-fetched template files
+    for (const entity of scaffoldedEntities.items) {
+      await createTemplateSyncPullRequest(
+        logger,
+        urlReader,
+        config,
+        catalogClient,
+        templateEntity,
+        entity,
+        payload.previousVersion,
+        payload.currentVersion,
+        token,
+        templateFiles,
+      );
+    }
+  }
 
   await sendNotificationsToOwners(
     notifications,
