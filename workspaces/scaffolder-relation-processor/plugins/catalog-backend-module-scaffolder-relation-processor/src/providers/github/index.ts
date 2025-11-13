@@ -310,32 +310,23 @@ export async function getOwnerGitHubLogin(
 }
 
 /**
- * Builds GitHub tree URLs for template and scaffolded repositories
+ * Builds a GitHub tree URL for a repository
  *
- * @param templateUrlInfo - Template repository information
  * @param scaffoldedRepoInfo - Scaffolded repository information
  * @param branch - Branch name (defaults to 'main')
- * @returns Object containing template and scaffolded URLs
+ * @returns URL of the repository
  *
  * @internal
  */
-export function buildRepositoryUrls(
-  templateUrlInfo: { owner: string; repo: string; path?: string },
+export function buildRepositoryUrl(
   scaffoldedRepoInfo: { owner: string; repo: string },
   branch: string = 'main',
-): { templateUrl: string; scaffoldedUrl: string } {
-  const templateUrl = buildGitHubTreeUrl(
-    templateUrlInfo.owner,
-    templateUrlInfo.repo,
-    branch,
-    templateUrlInfo.path,
-  );
-
-  const scaffoldedUrl = buildGitHubTreeUrl(
+): string {
+  const url = buildGitHubTreeUrl(
     scaffoldedRepoInfo.owner,
     scaffoldedRepoInfo.repo,
     branch,
   );
 
-  return { templateUrl, scaffoldedUrl };
+  return url;
 }

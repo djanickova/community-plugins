@@ -224,27 +224,37 @@ export async function handleTemplateUpdateNotifications(
   // Create pull requests to sync template changes for each scaffolded entity
   if (templateEntity) {
     const templateSourceUrl = extractTemplateSourceUrl(templateEntity);
-    let templateFiles: Map<string, string> | undefined;
+    if (!templateSourceUrl) {
+      logger.warn(
+        `No template source URL found for template ${templateEntity.metadata.name}. Skipping PR creation.`,
+      );
+      return;
+    }
 
-    if (templateSourceUrl) {
-      const templateUrlInfo = parseGitHubUrl(templateSourceUrl);
-      if (templateUrlInfo) {
-        const templateBranch = 'main';
-        const templateUrl = buildGitHubTreeUrl(
-          templateUrlInfo.owner,
-          templateUrlInfo.repo,
-          templateBranch,
-          templateUrlInfo.path,
-        );
+    const templateUrlInfo = parseGitHubUrl(templateSourceUrl);
+    if (!templateUrlInfo) {
+      logger.warn(
+        `Could not parse template URL for ${templateEntity.metadata.name}. Skipping PR creation.`,
+      );
+      return;
+    }
 
-        try {
-          templateFiles = await fetchRepoFiles(urlReader, templateUrl);
-        } catch (error) {
-          logger.error(
-            `Error fetching template files for ${templateEntity.metadata.name}: ${error}`,
-          );
-        }
-      }
+    const templateBranch = 'main';
+    const templateUrl = buildGitHubTreeUrl(
+      templateUrlInfo.owner,
+      templateUrlInfo.repo,
+      templateBranch,
+      templateUrlInfo.path,
+    );
+
+    let templateFiles: Map<string, string>;
+    try {
+      templateFiles = await fetchRepoFiles(urlReader, templateUrl);
+    } catch (error) {
+      logger.error(
+        `Error fetching template files for ${templateEntity.metadata.name}: ${error}. Skipping PR creation.`,
+      );
+      return;
     }
 
     // Process each scaffolded entity with pre-fetched template files

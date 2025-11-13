@@ -20,7 +20,7 @@ import type { Config } from '@backstage/config';
 import { createHash } from 'crypto';
 import { CatalogClient } from '@backstage/catalog-client';
 import {
-  buildRepositoryUrls,
+  buildRepositoryUrl,
   createPullRequestWithUpdates,
   getOwnerGitHubLogin,
   parseGitHubUrl,
@@ -254,26 +254,22 @@ function validateAndExtractRepoInfo(
  * Fetches and compares files between template and scaffolded repositories
  *
  * @param urlReader - UrlReaderService instance
- * @param templateUrl - Template repository URL
  * @param scaffoldedUrl - Scaffolded repository URL
- * @param templateFiles - Optional pre-fetched template files
+ * @param templateFiles - Pre-fetched template files
  * @returns Map of files that need updating, or null if error occurs
  *
  * @internal
  */
 async function fetchAndCompareFiles(
   urlReader: UrlReaderService,
-  templateUrl: string,
   scaffoldedUrl: string,
-  templateFiles?: Map<string, string>,
+  templateFiles: Map<string, string>,
 ): Promise<Map<string, string> | null> {
   try {
-    const templateFilesToUse =
-      templateFiles ?? (await fetchRepoFiles(urlReader, templateUrl));
     const scaffoldedFiles = await fetchRepoFiles(urlReader, scaffoldedUrl);
 
-    const commonFiles = findCommonFiles(templateFilesToUse, scaffoldedFiles);
-    return compareCommonFiles(commonFiles, templateFilesToUse, scaffoldedFiles);
+    const commonFiles = findCommonFiles(templateFiles, scaffoldedFiles);
+    return compareCommonFiles(commonFiles, templateFiles, scaffoldedFiles);
   } catch (error) {
     return null;
   }
@@ -311,7 +307,7 @@ async function getReviewerFromOwner(
  * @param catalogClient - Catalog client to fetch owner entity
  * @param templateEntity - The template entity
  * @param scaffoldedEntity - The scaffolded entity
- * @param templateFiles - Optional pre-fetched template files map. If not provided, will be fetched.
+ * @param templateFiles - Pre-fetched template files map
  * @param previousVersion - Previous version of the template
  * @param currentVersion - Current version of the template
  * @param token - Auth token for catalog API
@@ -328,7 +324,7 @@ export async function createTemplateSyncPullRequest(
   previousVersion: string,
   currentVersion: string,
   token: string,
-  templateFiles?: Map<string, string>,
+  templateFiles: Map<string, string>,
 ): Promise<void> {
   const repoInfo = validateAndExtractRepoInfo(
     logger,
@@ -343,16 +339,11 @@ export async function createTemplateSyncPullRequest(
   const { owner: scaffoldedOwner, repo: scaffoldedRepo } = scaffoldedRepoInfo;
 
   const branch = 'main';
-  const { templateUrl, scaffoldedUrl } = buildRepositoryUrls(
-    templateUrlInfo,
-    scaffoldedRepoInfo,
-    branch,
-  );
+  const scaffoldedUrl = buildRepositoryUrl(scaffoldedRepoInfo, branch);
 
   try {
     const filesToUpdate = await fetchAndCompareFiles(
       urlReader,
-      templateUrl,
       scaffoldedUrl,
       templateFiles,
     );
