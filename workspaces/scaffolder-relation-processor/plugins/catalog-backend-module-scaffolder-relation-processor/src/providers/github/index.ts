@@ -179,7 +179,7 @@ export async function createPullRequestWithUpdates(
   baseBranch: string,
   filesToUpdate: Map<string, string>,
   templateInfo: TemplateInfo,
-  reviewer?: string | null,
+  reviewer: string | null,
 ): Promise<void> {
   try {
     const repoUrl = `https://github.com/${owner}/${repo}`;

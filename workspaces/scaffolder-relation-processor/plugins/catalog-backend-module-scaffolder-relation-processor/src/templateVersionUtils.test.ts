@@ -126,7 +126,9 @@ describe('templateVersionUtils', () => {
             'metadata.namespace',
             'metadata.name',
             'metadata.title',
+            'metadata.annotations',
             'relations',
+            'spec',
           ],
         },
         {
