@@ -28,7 +28,6 @@ import {
   getOwnerGitHubLogin,
   buildRepositoryUrl,
 } from './index';
-import { OctokitWithCreatePullRequest } from './types';
 
 // Mock dependencies
 jest.mock('@backstage/integration');
@@ -38,23 +37,15 @@ jest.mock('git-url-parse');
 
 describe('github provider', () => {
   let mockConfig: Config;
-  let mockLogger: ReturnType<typeof mockServices.logger.mock>;
   let mockCatalogClient: jest.Mocked<CatalogClient>;
-  let mockOctokit: jest.Mocked<OctokitWithCreatePullRequest>;
 
   beforeEach(() => {
     jest.clearAllMocks();
 
     mockConfig = mockServices.rootConfig();
-    mockLogger = mockServices.logger.mock();
     mockCatalogClient = {
       getEntityByRef: jest.fn(),
     } as any as jest.Mocked<CatalogClient>;
-
-    mockOctokit = {
-      createPullRequest: jest.fn(),
-      request: jest.fn(),
-    } as any as jest.Mocked<OctokitWithCreatePullRequest>;
   });
 
   describe('getGitHubClient', () => {
