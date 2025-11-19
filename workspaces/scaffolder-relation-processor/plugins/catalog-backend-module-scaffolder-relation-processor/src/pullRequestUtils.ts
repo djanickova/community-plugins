@@ -387,7 +387,6 @@ export async function createTemplateSyncPullRequest(
       config,
       scaffoldedOwner,
       scaffoldedRepo,
-      branch,
       filesToUpdate,
       templateInfo,
       reviewer,

@@ -164,7 +164,6 @@ async function requestPullRequestReview(
  * @param config - Backstage config
  * @param owner - Repository owner
  * @param repo - Repository name
- * @param baseBranch - Base branch (usually 'main')
  * @param filesToUpdate - Map of file paths to their updated content
  * @param templateInfo - Template information including owner, repo, branch, name, versions, and component name
  * @param reviewer - Optional GitHub username to request review from
@@ -176,7 +175,6 @@ export async function createPullRequestWithUpdates(
   config: Config,
   owner: string,
   repo: string,
-  baseBranch: string,
   filesToUpdate: Map<string, string>,
   templateInfo: TemplateInfo,
   reviewer: string | null,
@@ -215,7 +213,6 @@ export async function createPullRequestWithUpdates(
       title: prTitle,
       body: prBody,
       head: branchName,
-      base: baseBranch,
       changes: [
         {
           files,
