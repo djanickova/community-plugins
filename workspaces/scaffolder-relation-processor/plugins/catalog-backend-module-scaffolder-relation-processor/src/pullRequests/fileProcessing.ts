@@ -17,7 +17,7 @@
 import { UrlReaderService } from '@backstage/backend-plugin-api';
 import { createHash } from 'crypto';
 import { fetchRepoFiles, findCommonFiles } from './vcs/common';
-import { preprocessTemplate } from './templateProcessing';
+import { preprocessTemplate } from './templateProcessing/templateContent';
 
 /**
  * Creates a hash of file content for comparison

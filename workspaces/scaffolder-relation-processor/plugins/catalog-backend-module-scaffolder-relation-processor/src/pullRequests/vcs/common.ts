@@ -75,7 +75,7 @@ export function createTemplateUpgradeCommitMessage(
 
 This PR was automatically created by scaffolder-relation-processor. 
 
-Template source: ${templateInfo.owner}/${templateInfo.repo}@${templateInfo.branch}
+Template source: ${templateInfo.owner}/${templateInfo.repo}
 Updated ${filesCount} file(s) to match the latest template version.
 
 Please manually review the changes to ensure they are correct before merging.`;
@@ -96,7 +96,7 @@ export function createTemplateUpgradePrBody(
 ): string {
   return `This pull request was automatically created by [scaffolder-relation-processor](${SCAFFOLDER_RELATION_PROCESSOR_URL}) in order to keep the scaffolded repository in sync with the template.
     
-**Template Source:** ${templateInfo.owner}/${templateInfo.repo}@${templateInfo.branch}
+**Template Source:** ${templateInfo.owner}/${templateInfo.repo}
 
 **Updated Files:** ${filesCount} file(s) have been updated to match the latest template version.
 

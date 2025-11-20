@@ -28,7 +28,6 @@ describe('common', () => {
   ): TemplateInfo => ({
     owner: 'test-owner',
     repo: 'test-repo',
-    branch: 'main',
     name: 'test-template',
     previousVersion: '1.0.0',
     currentVersion: '2.0.0',
@@ -131,7 +130,6 @@ describe('common', () => {
       const templateInfo = createMockTemplateInfo({
         owner: 'my-org',
         repo: 'my-template',
-        branch: 'main',
       });
 
       const result = createTemplateUpgradeCommitMessage(templateInfo, 5);
@@ -149,7 +147,6 @@ describe('common', () => {
       const templateInfo = createMockTemplateInfo({
         owner: 'my-org',
         repo: 'my-template',
-        branch: 'main',
       });
 
       const result = createTemplateUpgradePrBody(templateInfo, 3);
