@@ -33,12 +33,7 @@ import {
 import { ScaffolderRelationProcessorConfig } from './types';
 import type { Config } from '@backstage/config';
 import { LoggerService, UrlReaderService } from '@backstage/backend-plugin-api';
-import {
-  createTemplateSyncPullRequest,
-  extractTemplateSourceUrl,
-  fetchRepoFiles,
-} from './pullRequestUtils';
-import { buildGitHubTreeUrl, parseGitHubUrl } from './providers/github';
+import { handleTemplateUpdatePullRequest } from './pullRequests';
 
 /**
  * Cache structure for storing template version information
@@ -200,11 +195,6 @@ export async function handleTemplateUpdateNotifications(
     targetPluginId: 'catalog',
   });
 
-  // Get the template entity to extract source URL
-  const templateEntity = await catalogClient.getEntityByRef(payload.entityRef, {
-    token,
-  });
-
   const scaffoldedEntities = await catalogClient.getEntities(
     {
       filter: { 'spec.scaffoldedFrom': payload.entityRef },
@@ -221,58 +211,17 @@ export async function handleTemplateUpdateNotifications(
     { token },
   );
 
-  // Create pull requests to sync template changes for each scaffolded entity
-  if (templateEntity) {
-    const templateSourceUrl = extractTemplateSourceUrl(templateEntity);
-    if (!templateSourceUrl) {
-      logger.warn(
-        `No template source URL found for template ${templateEntity.metadata.name}. Skipping PR creation.`,
-      );
-      return;
-    }
-
-    const templateUrlInfo = parseGitHubUrl(templateSourceUrl);
-    if (!templateUrlInfo) {
-      logger.warn(
-        `Could not parse template URL for ${templateEntity.metadata.name}. Skipping PR creation.`,
-      );
-      return;
-    }
-
-    const templateBranch = 'main';
-    const templateUrl = buildGitHubTreeUrl(
-      templateUrlInfo.owner,
-      templateUrlInfo.repo,
-      templateBranch,
-      templateUrlInfo.path,
-    );
-
-    let templateFiles: Map<string, string>;
-    try {
-      templateFiles = await fetchRepoFiles(urlReader, templateUrl);
-    } catch (error) {
-      logger.error(
-        `Error fetching template files for ${templateEntity.metadata.name}: ${error}. Skipping PR creation.`,
-      );
-      return;
-    }
-
-    // Process each scaffolded entity with pre-fetched template files
-    for (const entity of scaffoldedEntities.items) {
-      await createTemplateSyncPullRequest(
-        logger,
-        urlReader,
-        config,
-        catalogClient,
-        templateEntity,
-        entity,
-        payload.previousVersion,
-        payload.currentVersion,
-        token,
-        templateFiles,
-      );
-    }
-  }
+  await handleTemplateUpdatePullRequest(
+    catalogClient,
+    token,
+    payload.entityRef,
+    logger,
+    urlReader,
+    config,
+    scaffoldedEntities.items,
+    payload.previousVersion,
+    payload.currentVersion,
+  );
 
   await sendNotificationsToOwners(
     notifications,

@@ -116,14 +116,14 @@ function compareFilesByHash(
 }
 
 /**
- * Extracts scaffolded repository information from entity annotations
+ * Extracts GitHub repository information from entity annotations
  *
  * @param scaffoldedEntity - The scaffolded entity
  * @returns Object with owner and repo, or null if not found/invalid
  *
  * @internal
  */
-function extractScaffoldedRepoInfo(
+function extractGithubRepoInfo(
   scaffoldedEntity: Entity,
 ): { owner: string; repo: string } | null {
   const scaffoldedRepoSlug =
@@ -208,49 +208,6 @@ function compareCommonFiles(
 }
 
 /**
- * Validates and extracts repository information from template and scaffolded entities
- *
- * @param logger - Logger service
- * @param templateEntity - The template entity
- * @param scaffoldedEntity - The scaffolded entity
- * @returns Repository information or null if validation fails
- *
- * @internal
- */
-function validateAndExtractRepoInfo(
-  logger: LoggerService,
-  templateEntity: Entity,
-  scaffoldedEntity: Entity,
-): {
-  templateUrlInfo: { owner: string; repo: string; path?: string };
-  scaffoldedRepoInfo: { owner: string; repo: string };
-} | null {
-  const templateSourceUrl = extractTemplateSourceUrl(templateEntity);
-  if (!templateSourceUrl) {
-    logger.debug(
-      `No template source URL found for template ${templateEntity.metadata.name}`,
-    );
-    return null;
-  }
-
-  const templateUrlInfo = parseGitHubUrl(templateSourceUrl);
-  if (!templateUrlInfo) {
-    logger.debug(`Could not parse template URL: ${templateSourceUrl}`);
-    return null;
-  }
-
-  const scaffoldedRepoInfo = extractScaffoldedRepoInfo(scaffoldedEntity);
-  if (!scaffoldedRepoInfo) {
-    logger.debug(
-      `No valid github.com/project-slug annotation found for entity ${scaffoldedEntity.metadata.name}`,
-    );
-    return null;
-  }
-
-  return { templateUrlInfo, scaffoldedRepoInfo };
-}
-
-/**
  * Fetches and compares files between template and scaffolded repositories
  *
  * @param urlReader - UrlReaderService instance
@@ -305,6 +262,7 @@ async function getReviewerFromOwner(
  * @param urlReader - UrlReaderService instance
  * @param config - Backstage config
  * @param catalogClient - Catalog client to fetch owner entity
+ * @param templateSourceUrl - The source URL of the template
  * @param templateEntity - The template entity
  * @param scaffoldedEntity - The scaffolded entity
  * @param templateFiles - Pre-fetched template files map
@@ -320,22 +278,22 @@ export async function createTemplateSyncPullRequest(
   config: Config,
   catalogClient: CatalogClient,
   templateEntity: Entity,
+  templateSourceUrl: string,
   scaffoldedEntity: Entity,
   previousVersion: string,
   currentVersion: string,
   token: string,
   templateFiles: Map<string, string>,
 ): Promise<void> {
-  const repoInfo = validateAndExtractRepoInfo(
-    logger,
-    templateEntity,
-    scaffoldedEntity,
-  );
-  if (!repoInfo) {
+  const templateUrlInfo = parseGitHubUrl(templateSourceUrl);
+  if (!templateUrlInfo) {
+    logger.debug(`Could not parse template URL: ${templateSourceUrl}`);
     return;
   }
-
-  const { templateUrlInfo, scaffoldedRepoInfo } = repoInfo;
+  const scaffoldedRepoInfo = extractGithubRepoInfo(scaffoldedEntity);
+  if (!scaffoldedRepoInfo) {
+    return;
+  }
   const { owner: scaffoldedOwner, repo: scaffoldedRepo } = scaffoldedRepoInfo;
 
   const branch = 'main';

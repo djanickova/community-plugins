@@ -44,9 +44,6 @@ export type OctokitWithCreatePullRequest = Octokit & {
  * Template information for pull request creation
  */
 export type TemplateInfo = {
-  owner: string;
-  repo: string;
-  branch: string;
   name: string;
   previousVersion: string;
   currentVersion: string;
