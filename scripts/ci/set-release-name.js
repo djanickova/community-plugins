@@ -97,10 +97,7 @@ async function main() {
   // Get the current Backstage version from the backstage.json file
   const backstageVersion = await getBackstageVersion(workspace);
 
-  // Check if releaseLine is a custom version
-  const isCustomVersion = releaseLine !== 'main' && releaseLine !== 'next';
-
-  if (isCustomVersion) {
+  if (releaseLine === 'custom') {
     console.log(`Current Backstage version is: v${backstageVersion}`);
     console.log(`Using custom version: ${releaseLine}`);
     console.log();
