@@ -38,6 +38,7 @@ import {
   createTemplateUpgradePrTitle,
 } from '../common';
 import { CatalogClient } from '@backstage/catalog-client';
+import type { Entity } from '@backstage/catalog-model';
 
 /**
  * Gets GitHub credentials and creates an Octokit instance with pull request plugin
@@ -286,4 +287,53 @@ export async function getOwnerGitHubLogin(
   } catch (error) {
     return null;
   }
+}
+
+/**
+ * Extracts GitHub repository information from entity annotations
+ *
+ * @param scaffoldedEntity - The scaffolded entity
+ * @returns Object with owner and repo, or null if not found/invalid
+ *
+ * @internal
+ */
+export function extractGithubRepoInfo(
+  scaffoldedEntity: Entity,
+): { owner: string; repo: string } | null {
+  const scaffoldedRepoSlug =
+    scaffoldedEntity.metadata.annotations?.['github.com/project-slug'];
+
+  if (!scaffoldedRepoSlug) {
+    return null;
+  }
+
+  const [owner, repo] = scaffoldedRepoSlug.split('/');
+  if (!owner || !repo) {
+    return null;
+  }
+
+  return { owner, repo };
+}
+
+/**
+ * Gets the reviewer GitHub login from the scaffolded entity's owner
+ *
+ * @param catalogClient - Catalog client to fetch owner entity
+ * @param scaffoldedEntity - The scaffolded entity
+ * @param token - Auth token for catalog API
+ * @returns GitHub login if owner is a User, null otherwise
+ *
+ * @internal
+ */
+export async function getReviewerFromOwner(
+  catalogClient: CatalogClient,
+  scaffoldedEntity: Entity,
+  token: string,
+): Promise<string | null> {
+  const ownerRef = scaffoldedEntity.spec?.owner?.toString();
+  if (!ownerRef) {
+    return null;
+  }
+
+  return getOwnerGitHubLogin(catalogClient, ownerRef, token);
 }

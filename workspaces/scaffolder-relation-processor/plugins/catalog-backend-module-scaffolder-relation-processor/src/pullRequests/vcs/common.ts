@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { UrlReaderService } from '@backstage/backend-plugin-api';
 import { TemplateInfo } from './github/types';
 
 /**
@@ -119,4 +120,57 @@ export function createTemplateUpgradePrTitle(
   return `Template Upgrade: Update ${templateInfo.name} to ${
     templateInfo.currentVersion || 'new version'
   }`;
+}
+
+/**
+ * Fetches repository file tree using UrlReader
+ *
+ * @param urlReader - UrlReaderService instance
+ * @param url - Repository URL (e.g., 'https://github.com/owner/repo/tree/branch/path')
+ * @returns Map of file paths to their content
+ *
+ * @internal
+ */
+export async function fetchRepoFiles(
+  urlReader: UrlReaderService,
+  url: string,
+): Promise<Map<string, string>> {
+  const files = new Map<string, string>();
+
+  try {
+    const tree = await urlReader.readTree(url);
+
+    const treeFiles = await tree.files();
+
+    for (const file of treeFiles) {
+      try {
+        const content = await file.content();
+        files.set(file.path, content.toString('utf-8'));
+      } catch (error) {
+        continue;
+      }
+    }
+
+    return files;
+  } catch (error) {
+    throw new Error(`Error fetching repository files: ${error}`);
+  }
+}
+
+/**
+ * Finds common files between template and scaffolded repositories
+ *
+ * @param templateFiles - Map of template file paths to content
+ * @param scaffoldedFiles - Map of scaffolded file paths to content
+ * @returns Array of common file paths
+ *
+ * @internal
+ */
+export function findCommonFiles(
+  templateFiles: Map<string, string>,
+  scaffoldedFiles: Map<string, string>,
+): string[] {
+  return Array.from(templateFiles.keys()).filter(file =>
+    scaffoldedFiles.has(file),
+  );
 }
