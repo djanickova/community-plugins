@@ -20,11 +20,10 @@ import type { Config } from '@backstage/config';
 import { createHash } from 'crypto';
 import { CatalogClient } from '@backstage/catalog-client';
 import {
-  buildRepositoryUrl,
   createPullRequestWithUpdates,
   getOwnerGitHubLogin,
   parseGitHubUrl,
-} from './providers/github';
+} from './pullRequests/providers/github';
 import { preprocessTemplate } from './templateProcessing';
 
 /**
@@ -160,6 +159,42 @@ function findCommonFiles(
 }
 
 /**
+ * Finds files that exist only in the template repository
+ *
+ * @param templateFiles - Map of template file paths to content
+ * @param scaffoldedFiles - Map of scaffolded file paths to content
+ * @returns Array of file paths that should be added to scaffolded repo
+ *
+ * @internal
+ */
+function findTemplateOnlyFiles(
+  templateFiles: Map<string, string>,
+  scaffoldedFiles: Map<string, string>,
+): string[] {
+  return Array.from(templateFiles.keys()).filter(
+    file => !scaffoldedFiles.has(file),
+  );
+}
+
+/**
+ * Finds files that exist only in the scaffolded repository
+ *
+ * @param templateFiles - Map of template file paths to content
+ * @param scaffoldedFiles - Map of scaffolded file paths to content
+ * @returns Array of file paths that should be removed from scaffolded repo
+ *
+ * @internal
+ */
+function findScaffoldedOnlyFiles(
+  templateFiles: Map<string, string>,
+  scaffoldedFiles: Map<string, string>,
+): string[] {
+  return Array.from(scaffoldedFiles.keys()).filter(
+    file => !templateFiles.has(file),
+  );
+}
+
+/**
  * Compares common files and collects files that need updating
  *
  * @param commonFiles - Array of common file paths
@@ -213,7 +248,7 @@ function compareCommonFiles(
  * @param urlReader - UrlReaderService instance
  * @param scaffoldedUrl - Scaffolded repository URL
  * @param templateFiles - Pre-fetched template files
- * @returns Map of files that need updating, or null if error occurs
+ * @returns Map of files that need creating/updating (string) or deleting (null), or null if error occurs
  *
  * @internal
  */
@@ -221,12 +256,42 @@ async function fetchAndCompareFiles(
   urlReader: UrlReaderService,
   scaffoldedUrl: string,
   templateFiles: Map<string, string>,
-): Promise<Map<string, string> | null> {
+): Promise<Map<string, string | null> | null> {
   try {
     const scaffoldedFiles = await fetchRepoFiles(urlReader, scaffoldedUrl);
 
+    const filesToUpdate = new Map<string, string | null>();
     const commonFiles = findCommonFiles(templateFiles, scaffoldedFiles);
-    return compareCommonFiles(commonFiles, templateFiles, scaffoldedFiles);
+    const commonFileUpdates = compareCommonFiles(
+      commonFiles,
+      templateFiles,
+      scaffoldedFiles,
+    );
+
+    for (const [filePath, content] of commonFileUpdates.entries()) {
+      filesToUpdate.set(filePath, content);
+    }
+
+    const templateOnlyFiles = findTemplateOnlyFiles(
+      templateFiles,
+      scaffoldedFiles,
+    );
+    for (const file of templateOnlyFiles) {
+      const templateContent = templateFiles.get(file);
+      if (typeof templateContent === 'string') {
+        filesToUpdate.set(file, templateContent);
+      }
+    }
+
+    const scaffoldedOnlyFiles = findScaffoldedOnlyFiles(
+      templateFiles,
+      scaffoldedFiles,
+    );
+    for (const file of scaffoldedOnlyFiles) {
+      filesToUpdate.set(file, null);
+    }
+
+    return filesToUpdate;
   } catch (error) {
     return null;
   }
@@ -296,8 +361,7 @@ export async function createTemplateSyncPullRequest(
   }
   const { owner: scaffoldedOwner, repo: scaffoldedRepo } = scaffoldedRepoInfo;
 
-  const branch = 'main';
-  const scaffoldedUrl = buildRepositoryUrl(scaffoldedRepoInfo, branch);
+  const scaffoldedUrl = `https://github.com/${scaffoldedOwner}/${scaffoldedRepo}`;
 
   try {
     const filesToUpdate = await fetchAndCompareFiles(
@@ -327,7 +391,6 @@ export async function createTemplateSyncPullRequest(
     const templateInfo = {
       owner: templateUrlInfo.owner,
       repo: templateUrlInfo.repo,
-      branch,
       name: templateEntity.metadata.title ?? templateEntity.metadata.name,
       previousVersion,
       currentVersion,

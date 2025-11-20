@@ -21,13 +21,7 @@ import {
 } from '@backstage/integration';
 import { CatalogClient } from '@backstage/catalog-client';
 import { mockServices } from '@backstage/backend-test-utils';
-import {
-  getGitHubClient,
-  parseGitHubUrl,
-  buildGitHubTreeUrl,
-  getOwnerGitHubLogin,
-  buildRepositoryUrl,
-} from './index';
+import { getGitHubClient, parseGitHubUrl, getOwnerGitHubLogin } from './index';
 
 // Mock dependencies
 jest.mock('@backstage/integration');
@@ -280,40 +274,6 @@ describe('github provider', () => {
     });
   });
 
-  describe('buildGitHubTreeUrl', () => {
-    it('should build a GitHub tree URL without path', () => {
-      const result = buildGitHubTreeUrl('owner', 'repo', 'main');
-
-      expect(result).toBe('https://github.com/owner/repo/tree/main');
-    });
-
-    it('should build a GitHub tree URL with path', () => {
-      const result = buildGitHubTreeUrl(
-        'owner',
-        'repo',
-        'main',
-        'path/to/file',
-      );
-
-      expect(result).toBe(
-        'https://github.com/owner/repo/tree/main/path/to/file',
-      );
-    });
-
-    it('should handle nested paths', () => {
-      const result = buildGitHubTreeUrl(
-        'owner',
-        'repo',
-        'develop',
-        'src/components/Button',
-      );
-
-      expect(result).toBe(
-        'https://github.com/owner/repo/tree/develop/src/components/Button',
-      );
-    });
-  });
-
   describe('getOwnerGitHubLogin', () => {
     it('should return GitHub login for User entity with annotation', async () => {
       const mockUserEntity = {
@@ -392,30 +352,6 @@ describe('github provider', () => {
       );
 
       expect(result).toBeNull();
-    });
-  });
-
-  describe('buildRepositoryUrl', () => {
-    it('should build repository URL with default branch', () => {
-      const scaffoldedRepoInfo = {
-        owner: 'owner',
-        repo: 'repo',
-      };
-
-      const result = buildRepositoryUrl(scaffoldedRepoInfo);
-
-      expect(result).toBe('https://github.com/owner/repo/tree/main');
-    });
-
-    it('should build repository URL with custom branch', () => {
-      const scaffoldedRepoInfo = {
-        owner: 'owner',
-        repo: 'repo',
-      };
-
-      const result = buildRepositoryUrl(scaffoldedRepoInfo, 'develop');
-
-      expect(result).toBe('https://github.com/owner/repo/tree/develop');
     });
   });
 });

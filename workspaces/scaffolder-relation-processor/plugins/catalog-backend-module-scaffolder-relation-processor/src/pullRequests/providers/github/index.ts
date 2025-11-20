@@ -17,7 +17,10 @@
 import { Octokit } from '@octokit/core';
 import type { Config } from '@backstage/config';
 import { LoggerService } from '@backstage/backend-plugin-api';
-import { createPullRequest } from 'octokit-plugin-create-pull-request';
+import {
+  createPullRequest,
+  DELETE_FILE,
+} from 'octokit-plugin-create-pull-request';
 import {
   ScmIntegrations,
   DefaultGithubCredentialsProvider,
@@ -164,7 +167,7 @@ async function requestPullRequestReview(
  * @param config - Backstage config
  * @param owner - Repository owner
  * @param repo - Repository name
- * @param filesToUpdate - Map of file paths to their updated content
+ * @param filesToUpdate - Map of file paths to updated content or null for deletions
  * @param templateInfo - Template information including owner, repo, branch, name, versions, and component name
  * @param reviewer - Optional GitHub username to request review from
  *
@@ -175,7 +178,7 @@ export async function createPullRequestWithUpdates(
   config: Config,
   owner: string,
   repo: string,
-  filesToUpdate: Map<string, string>,
+  filesToUpdate: Map<string, string | null>,
   templateInfo: TemplateInfo,
   reviewer: string | null,
 ): Promise<void> {
@@ -191,9 +194,9 @@ export async function createPullRequestWithUpdates(
     }
 
     // Prepare files object for the plugin
-    const files: Record<string, string> = {};
+    const files: Record<string, string | typeof DELETE_FILE> = {};
     for (const [filePath, content] of filesToUpdate.entries()) {
-      files[filePath] = content;
+      files[filePath] = content === null ? DELETE_FILE : content;
     }
 
     const branchName = createTemplateUpgradeBranchName(templateInfo);
@@ -251,27 +254,6 @@ export async function createPullRequestWithUpdates(
 }
 
 /**
- * Builds a GitHub tree URL for a repository
- *
- * @param owner - Repository owner
- * @param repo - Repository name
- * @param branch - Branch name
- * @param path - Optional path within the repository
- * @returns GitHub tree URL
- *
- * @internal
- */
-export function buildGitHubTreeUrl(
-  owner: string,
-  repo: string,
-  branch: string,
-  path?: string,
-): string {
-  const baseUrl = `https://github.com/${owner}/${repo}/tree/${branch}`;
-  return path ? `${baseUrl}/${path}` : baseUrl;
-}
-
-/**
  * Extracts the GitHub login from the owner entity if it's a User
  *
  * @param catalogClient - Catalog client to fetch owner entity
@@ -304,26 +286,4 @@ export async function getOwnerGitHubLogin(
   } catch (error) {
     return null;
   }
-}
-
-/**
- * Builds a GitHub tree URL for a repository
- *
- * @param scaffoldedRepoInfo - Scaffolded repository information
- * @param branch - Branch name (defaults to 'main')
- * @returns URL of the repository
- *
- * @internal
- */
-export function buildRepositoryUrl(
-  scaffoldedRepoInfo: { owner: string; repo: string },
-  branch: string = 'main',
-): string {
-  const url = buildGitHubTreeUrl(
-    scaffoldedRepoInfo.owner,
-    scaffoldedRepoInfo.repo,
-    branch,
-  );
-
-  return url;
 }
