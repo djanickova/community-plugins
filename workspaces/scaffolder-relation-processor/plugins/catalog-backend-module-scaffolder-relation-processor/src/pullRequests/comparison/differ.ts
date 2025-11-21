@@ -14,10 +14,8 @@
  * limitations under the License.
  */
 
-import { UrlReaderService } from '@backstage/backend-plugin-api';
 import { createHash } from 'crypto';
-import { fetchRepoFiles, findCommonFiles } from './vcs/common';
-import { preprocessTemplate } from './templateProcessing/templateContent';
+import { preprocessTemplate } from '../template/variables';
 
 /**
  * Creates a hash of file content for comparison
@@ -74,7 +72,7 @@ export function findTemplateOnlyFiles(
  *
  * @internal
  */
-function findScaffoldedOnlyFiles(
+export function findScaffoldedOnlyFiles(
   templateFiles: Map<string, string>,
   scaffoldedFiles: Map<string, string>,
 ): string[] {
@@ -129,59 +127,4 @@ export function compareCommonFiles(
   }
 
   return filesToUpdate;
-}
-
-/**
- * Fetches and compares files between template and scaffolded repositories
- *
- * @param urlReader - UrlReaderService instance
- * @param scaffoldedUrl - Scaffolded repository URL
- * @param templateFiles - Pre-fetched template files
- * @returns Map of files that need creating/updating (string) or deleting (null), or null if error occurs
- *
- * @internal
- */
-export async function fetchAndCompareFiles(
-  urlReader: UrlReaderService,
-  scaffoldedUrl: string,
-  templateFiles: Map<string, string>,
-): Promise<Map<string, string | null> | null> {
-  try {
-    const scaffoldedFiles = await fetchRepoFiles(urlReader, scaffoldedUrl);
-
-    const filesToUpdate = new Map<string, string | null>();
-    const commonFiles = findCommonFiles(templateFiles, scaffoldedFiles);
-    const commonFileUpdates = compareCommonFiles(
-      commonFiles,
-      templateFiles,
-      scaffoldedFiles,
-    );
-
-    for (const [filePath, content] of commonFileUpdates.entries()) {
-      filesToUpdate.set(filePath, content);
-    }
-
-    const templateOnlyFiles = findTemplateOnlyFiles(
-      templateFiles,
-      scaffoldedFiles,
-    );
-    for (const file of templateOnlyFiles) {
-      const templateContent = templateFiles.get(file);
-      if (typeof templateContent === 'string') {
-        filesToUpdate.set(file, templateContent);
-      }
-    }
-
-    const scaffoldedOnlyFiles = findScaffoldedOnlyFiles(
-      templateFiles,
-      scaffoldedFiles,
-    );
-    for (const file of scaffoldedOnlyFiles) {
-      filesToUpdate.set(file, null);
-    }
-
-    return filesToUpdate;
-  } catch (error) {
-    return null;
-  }
 }

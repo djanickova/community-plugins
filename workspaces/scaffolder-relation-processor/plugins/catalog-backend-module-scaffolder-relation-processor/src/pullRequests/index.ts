@@ -20,13 +20,13 @@ import type { Entity } from '@backstage/catalog-model';
 import type { Config } from '@backstage/config';
 import {
   createPullRequestWithUpdates,
-  extractGithubRepoInfo,
+  extractGithubRepoUrl,
   getReviewerFromOwner,
   parseGitHubUrl,
 } from './vcs/github';
 import { fetchRepoFiles } from './vcs/common';
-import { fetchAndCompareFiles } from './fileProcessing';
-import { extractTemplateSourceUrl } from './templateProcessing/templateEntity';
+import { fetchAndCompareFiles } from './comparison';
+import { extractTemplateSourceUrl } from './template/entity';
 
 /**
  * Creates a pull request to sync template changes with a scaffolded repository
@@ -63,13 +63,14 @@ async function createTemplateSyncPullRequest(
     logger.debug(`Could not parse template URL: ${templateSourceUrl}`);
     return;
   }
-  const scaffoldedRepoInfo = extractGithubRepoInfo(scaffoldedEntity);
-  if (!scaffoldedRepoInfo) {
+
+  const scaffoldedUrl = extractGithubRepoUrl(scaffoldedEntity);
+  if (!scaffoldedUrl) {
+    logger.debug(
+      `Could not extract repository URL from entity ${scaffoldedEntity.metadata.name}`,
+    );
     return;
   }
-  const { owner: scaffoldedOwner, repo: scaffoldedRepo } = scaffoldedRepoInfo;
-
-  const scaffoldedUrl = `https://github.com/${scaffoldedOwner}/${scaffoldedRepo}`;
 
   try {
     const filesToUpdate = await fetchAndCompareFiles(
@@ -114,8 +115,7 @@ async function createTemplateSyncPullRequest(
     await createPullRequestWithUpdates(
       logger,
       config,
-      scaffoldedOwner,
-      scaffoldedRepo,
+      scaffoldedUrl,
       filesToUpdate,
       templateInfo,
       reviewer,

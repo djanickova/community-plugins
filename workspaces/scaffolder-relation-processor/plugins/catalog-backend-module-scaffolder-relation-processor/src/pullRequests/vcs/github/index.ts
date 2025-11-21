@@ -103,9 +103,6 @@ export function parseGitHubUrl(url: string): GithubParsedUrl | null {
   try {
     const parsed = gitUrlParse(url);
 
-    if (parsed.source !== 'github.com' && parsed.resource !== 'github.com') {
-      return null;
-    }
     if (!parsed.owner || !parsed.name) {
       return null;
     }
@@ -166,8 +163,7 @@ async function requestPullRequestReview(
  *
  * @param logger - Logger service
  * @param config - Backstage config
- * @param owner - Repository owner
- * @param repo - Repository name
+ * @param repoUrl - Full repository URL (supports self-hosted GitHub instances)
  * @param filesToUpdate - Map of file paths to updated content or null for deletions
  * @param templateInfo - Template information including owner, repo, branch, name, versions, and component name
  * @param reviewer - Optional GitHub username to request review from
@@ -177,22 +173,26 @@ async function requestPullRequestReview(
 export async function createPullRequestWithUpdates(
   logger: LoggerService,
   config: Config,
-  owner: string,
-  repo: string,
+  repoUrl: string,
   filesToUpdate: Map<string, string | null>,
   templateInfo: TemplateInfo,
   reviewer: string | null,
 ): Promise<void> {
   try {
-    const repoUrl = `https://github.com/${owner}/${repo}`;
     const octokit = await getGitHubClient(config, repoUrl);
 
     if (!octokit) {
-      logger.warn(
-        `Could not get GitHub client to create PR for ${owner}/${repo}`,
-      );
+      logger.warn(`Could not get GitHub client to create PR for ${repoUrl}`);
       return;
     }
+
+    // Extract owner and repo from URL
+    const parsedUrl = parseGitHubUrl(repoUrl);
+    if (!parsedUrl) {
+      logger.warn(`Could not parse repository URL: ${repoUrl}`);
+      return;
+    }
+    const { owner, repo } = parsedUrl;
 
     // Prepare files object for the plugin
     const files: Record<string, string | typeof DELETE_FILE> = {};
@@ -249,7 +249,7 @@ export async function createPullRequestWithUpdates(
     }
   } catch (error) {
     logger.error(
-      `Error creating template update pull request for ${owner}/${repo}: ${error}`,
+      `Error creating template update pull request for ${repoUrl}: ${error}`,
     );
   }
 }
@@ -290,29 +290,28 @@ export async function getOwnerGitHubLogin(
 }
 
 /**
- * Extracts GitHub repository information from entity annotations
+ * Extracts GitHub repository URL from entity annotations
  *
  * @param scaffoldedEntity - The scaffolded entity
- * @returns Object with owner and repo, or null if not found/invalid
+ * @returns Repository URL (including host for self-hosted GitHub instances), or null if not found
  *
  * @internal
  */
-export function extractGithubRepoInfo(
-  scaffoldedEntity: Entity,
-): { owner: string; repo: string } | null {
-  const scaffoldedRepoSlug =
-    scaffoldedEntity.metadata.annotations?.['github.com/project-slug'];
+export function extractGithubRepoUrl(scaffoldedEntity: Entity): string | null {
+  const sourceLocation =
+    scaffoldedEntity.metadata.annotations?.['backstage.io/source-location'];
 
-  if (!scaffoldedRepoSlug) {
+  if (!sourceLocation) {
     return null;
   }
 
-  const [owner, repo] = scaffoldedRepoSlug.split('/');
-  if (!owner || !repo) {
-    return null;
-  }
+  // Source location format: "url:https://github.com/owner/repo" or "url:https://github.example.com/owner/repo"
+  // Strip the "url:" prefix if present
+  const url = sourceLocation.startsWith('url:')
+    ? sourceLocation.substring(4)
+    : sourceLocation;
 
-  return { owner, repo };
+  return url;
 }
 
 /**

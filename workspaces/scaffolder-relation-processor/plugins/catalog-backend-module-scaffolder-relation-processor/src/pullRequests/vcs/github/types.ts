@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { type Octokit } from '@octokit/core';
+import type { Octokit } from '@octokit/core';
 import { createPullRequest } from 'octokit-plugin-create-pull-request';
 
 export type GithubParsedUrl = {
