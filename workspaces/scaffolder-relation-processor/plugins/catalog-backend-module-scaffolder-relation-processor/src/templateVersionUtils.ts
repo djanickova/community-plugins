@@ -34,6 +34,7 @@ import { ScaffolderRelationProcessorConfig } from './types';
 import type { Config } from '@backstage/config';
 import { LoggerService, UrlReaderService } from '@backstage/backend-plugin-api';
 import { handleTemplateUpdatePullRequest } from './pullRequests';
+import type { VcsProviderRegistry } from './pullRequests/vcs/VcsProviderRegistry';
 
 /**
  * Cache structure for storing template version information
@@ -187,8 +188,8 @@ export async function handleTemplateUpdateNotifications(
     currentVersion: string;
   },
   logger: LoggerService,
-  config: Config,
   urlReader: UrlReaderService,
+  vcsRegistry: VcsProviderRegistry,
 ): Promise<void> {
   const { token } = await auth.getPluginRequestToken({
     onBehalfOf: await auth.getOwnServiceCredentials(),
@@ -217,7 +218,7 @@ export async function handleTemplateUpdateNotifications(
     payload.entityRef,
     logger,
     urlReader,
-    config,
+    vcsRegistry,
     scaffoldedEntities.items,
     payload.previousVersion,
     payload.currentVersion,

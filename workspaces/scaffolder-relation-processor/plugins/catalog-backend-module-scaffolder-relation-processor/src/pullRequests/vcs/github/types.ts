@@ -17,13 +17,6 @@
 import type { Octokit } from '@octokit/core';
 import { createPullRequest } from 'octokit-plugin-create-pull-request';
 
-export type GithubParsedUrl = {
-  owner: string;
-  repo: string;
-  branch?: string;
-  path?: string;
-};
-
 /**
  * Extract the return type from the createPullRequest plugin function
  */
@@ -38,16 +31,4 @@ export type OctokitWithCreatePullRequest = Octokit & {
   createPullRequest: (
     options: createPullRequest.Options,
   ) => CreatePullRequestReturnType;
-};
-
-/**
- * Template information for pull request creation
- */
-export type TemplateInfo = {
-  owner: string;
-  repo: string;
-  name: string;
-  previousVersion: string;
-  currentVersion: string;
-  componentName: string;
 };

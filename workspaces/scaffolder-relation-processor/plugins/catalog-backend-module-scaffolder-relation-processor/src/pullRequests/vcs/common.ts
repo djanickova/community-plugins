@@ -15,7 +15,7 @@
  */
 
 import { UrlReaderService } from '@backstage/backend-plugin-api';
-import { TemplateInfo } from './github/types';
+import { TemplateInfo } from './VcsProvider';
 
 /**
  * GitHub repository URL for the scaffolder-relation-processor plugin

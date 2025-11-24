@@ -26,6 +26,8 @@ import { ScaffolderRelationEntityProcessor } from './ScaffolderRelationEntityPro
 import { handleTemplateUpdateNotifications } from './templateVersionUtils';
 import { readScaffolderRelationProcessorConfig } from './templateVersionUtils';
 import { TEMPLATE_VERSION_UPDATED_TOPIC } from './constants';
+import { VcsProviderRegistry } from './pullRequests/vcs/VcsProviderRegistry';
+import { GitHubProvider } from './pullRequests/vcs/github';
 
 /**
  * Catalog processor that adds link relation between scaffolder templates and their generated entities
@@ -65,6 +67,19 @@ export const catalogModuleScaffolderRelationProcessor = createBackendModule({
 
         const catalogClient = new CatalogClient({ discoveryApi: discovery });
 
+        // Initialize VCS provider registry
+        const vcsRegistry = new VcsProviderRegistry();
+
+        // Register GitHub provider
+        const githubProvider = new GitHubProvider(
+          logger,
+          config,
+          catalogClient,
+        );
+        vcsRegistry.registerProvider(githubProvider);
+
+        logger.debug('Registered VCS providers: github');
+
         // Only subscribe to events if notifications are enabled
         if (processorConfig.notifications?.templateUpdate?.enabled) {
           await events.subscribe({
@@ -89,8 +104,8 @@ export const catalogModuleScaffolderRelationProcessor = createBackendModule({
                 processorConfig,
                 payload,
                 logger,
-                config,
                 urlReader,
+                vcsRegistry,
               );
             },
           });

@@ -15,18 +15,20 @@
  */
 
 import type { Entity } from '@backstage/catalog-model';
-import { extractGithubRepoUrl } from '../vcs/github';
+import type { VcsProviderRegistry } from '../vcs/VcsProviderRegistry';
 
 /**
  * Extracts the template source URL from a template entity
  *
  * @param templateEntity - The template entity
+ * @param vcsRegistry - VCS provider registry to resolve URLs
  * @returns The source URL from the fetch:template action, or null if not found
  *
  * @internal
  */
 export function extractTemplateSourceUrl(
   templateEntity: Entity,
+  vcsRegistry: VcsProviderRegistry,
 ): string | null {
   const spec = templateEntity.spec as any;
   if (!spec?.steps || !Array.isArray(spec.steps)) {
@@ -39,8 +41,13 @@ export function extractTemplateSourceUrl(
 
       // If URL is relative (starts with './'), combine with source location
       if (url.startsWith('./')) {
-        const baseUrl = extractGithubRepoUrl(templateEntity);
+        // Try to get a VCS provider that can extract the base URL from the entity
+        const provider = vcsRegistry.getProviderForEntity(templateEntity);
+        if (!provider) {
+          return null;
+        }
 
+        const baseUrl = provider.extractRepoUrl(templateEntity);
         if (!baseUrl) {
           return null;
         }

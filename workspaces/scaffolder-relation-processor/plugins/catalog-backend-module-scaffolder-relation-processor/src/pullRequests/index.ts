@@ -17,23 +17,17 @@
 import { CatalogClient } from '@backstage/catalog-client';
 import { LoggerService, UrlReaderService } from '@backstage/backend-plugin-api';
 import type { Entity } from '@backstage/catalog-model';
-import type { Config } from '@backstage/config';
-import {
-  createPullRequestWithUpdates,
-  extractGithubRepoUrl,
-  getReviewerFromOwner,
-  parseGitHubUrl,
-} from './vcs/github';
 import { fetchRepoFiles } from './vcs/common';
 import { fetchAndCompareFiles } from './comparison';
 import { extractTemplateSourceUrl } from './template/entity';
+import type { VcsProviderRegistry } from './vcs/VcsProviderRegistry';
 
 /**
  * Creates a pull request to sync template changes with a scaffolded repository
  *
  * @param logger - Logger service
  * @param urlReader - UrlReaderService instance
- * @param config - Backstage config
+ * @param vcsRegistry - VCS provider registry
  * @param catalogClient - Catalog client to fetch owner entity
  * @param templateSourceUrl - The source URL of the template
  * @param templateEntity - The template entity
@@ -48,8 +42,7 @@ import { extractTemplateSourceUrl } from './template/entity';
 async function createTemplateSyncPullRequest(
   logger: LoggerService,
   urlReader: UrlReaderService,
-  config: Config,
-  catalogClient: CatalogClient,
+  vcsRegistry: VcsProviderRegistry,
   templateEntity: Entity,
   templateSourceUrl: string,
   scaffoldedEntity: Entity,
@@ -58,13 +51,31 @@ async function createTemplateSyncPullRequest(
   token: string,
   templateFiles: Map<string, string>,
 ): Promise<void> {
-  const templateUrlInfo = parseGitHubUrl(templateSourceUrl);
+  // Get the provider for the template URL
+  const templateProvider = vcsRegistry.getProviderForUrl(templateSourceUrl);
+  if (!templateProvider) {
+    logger.debug(
+      `No VCS provider found for template URL: ${templateSourceUrl}`,
+    );
+    return;
+  }
+
+  const templateUrlInfo = templateProvider.parseUrl(templateSourceUrl);
   if (!templateUrlInfo) {
     logger.debug(`Could not parse template URL: ${templateSourceUrl}`);
     return;
   }
 
-  const scaffoldedUrl = extractGithubRepoUrl(scaffoldedEntity);
+  // Get the provider for the scaffolded entity
+  const scaffoldedProvider = vcsRegistry.getProviderForEntity(scaffoldedEntity);
+  if (!scaffoldedProvider) {
+    logger.debug(
+      `No VCS provider found for entity ${scaffoldedEntity.metadata.name}`,
+    );
+    return;
+  }
+
+  const scaffoldedUrl = scaffoldedProvider.extractRepoUrl(scaffoldedEntity);
   if (!scaffoldedUrl) {
     logger.debug(
       `Could not extract repository URL from entity ${scaffoldedEntity.metadata.name}`,
@@ -106,15 +117,12 @@ async function createTemplateSyncPullRequest(
       componentName: scaffoldedEntity.metadata.name,
     };
 
-    const reviewer = await getReviewerFromOwner(
-      catalogClient,
+    const reviewer = await scaffoldedProvider.getReviewerFromOwner(
       scaffoldedEntity,
       token,
     );
 
-    await createPullRequestWithUpdates(
-      logger,
-      config,
+    await scaffoldedProvider.createPullRequest(
       scaffoldedUrl,
       filesToUpdate,
       templateInfo,
@@ -135,7 +143,7 @@ async function createTemplateSyncPullRequest(
  * @param entityRef - Entity reference of the template
  * @param logger - Logger service
  * @param urlReader - UrlReaderService instance
- * @param config - Backstage config
+ * @param vcsRegistry - VCS provider registry
  * @param scaffoldedEntities - Array of scaffolded entities
  * @param previousVersion - Previous version of the template
  * @param currentVersion - Current version of the template
@@ -148,7 +156,7 @@ export async function handleTemplateUpdatePullRequest(
   entityRef: string,
   logger: LoggerService,
   urlReader: UrlReaderService,
-  config: Config,
+  vcsRegistry: VcsProviderRegistry,
   scaffoldedEntities: Entity[],
   previousVersion: string,
   currentVersion: string,
@@ -160,7 +168,10 @@ export async function handleTemplateUpdatePullRequest(
 
   // Create pull requests to sync template changes for each scaffolded entity
   if (templateEntity) {
-    const templateSourceUrl = extractTemplateSourceUrl(templateEntity);
+    const templateSourceUrl = extractTemplateSourceUrl(
+      templateEntity,
+      vcsRegistry,
+    );
     if (!templateSourceUrl) {
       logger.warn(
         `No template source URL found for template ${templateEntity.metadata.name}. Skipping PR creation.`,
@@ -183,8 +194,7 @@ export async function handleTemplateUpdatePullRequest(
       await createTemplateSyncPullRequest(
         logger,
         urlReader,
-        config,
-        catalogClient,
+        vcsRegistry,
         templateEntity,
         templateSourceUrl,
         entity,
