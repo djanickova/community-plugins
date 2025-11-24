@@ -172,8 +172,8 @@ async function sendNotificationsToOwners(
  * @param processorConfig - Parsed scaffolder relation processor config
  * @param payload - Template update payload containing entity ref and version info
  * @param logger - Logger service for logging diffs
- * @param config - Backstage config
  * @param urlReader - UrlReaderService for fetching repository files
+ * @param vcsRegistry - VCS provider registry
  *
  * @internal
  */

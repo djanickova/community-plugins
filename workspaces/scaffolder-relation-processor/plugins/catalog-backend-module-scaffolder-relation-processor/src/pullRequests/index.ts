@@ -28,14 +28,13 @@ import type { VcsProviderRegistry } from './vcs/VcsProviderRegistry';
  * @param logger - Logger service
  * @param urlReader - UrlReaderService instance
  * @param vcsRegistry - VCS provider registry
- * @param catalogClient - Catalog client to fetch owner entity
- * @param templateSourceUrl - The source URL of the template
  * @param templateEntity - The template entity
+ * @param templateSourceUrl - The source URL of the template
  * @param scaffoldedEntity - The scaffolded entity
- * @param templateFiles - Pre-fetched template files map
  * @param previousVersion - Previous version of the template
  * @param currentVersion - Current version of the template
  * @param token - Auth token for catalog API
+ * @param templateFiles - Pre-fetched template files map
  *
  * @internal
  */
