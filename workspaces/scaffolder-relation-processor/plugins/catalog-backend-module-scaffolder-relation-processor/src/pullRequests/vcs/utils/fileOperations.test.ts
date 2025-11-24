@@ -15,7 +15,7 @@
  */
 
 import { fetchRepoFiles, findCommonFiles } from './fileOperations';
-import type { UrlReaderService } from '@backstage/backend-plugin-api';
+import { mockServices } from '@backstage/backend-test-utils';
 
 describe('fileOperations', () => {
   describe('fetchRepoFiles', () => {
@@ -34,9 +34,9 @@ describe('fileOperations', () => {
         files: jest.fn().mockResolvedValue([mockFile1, mockFile2]),
       };
 
-      const mockUrlReader = {
+      const mockUrlReader = mockServices.urlReader.mock({
         readTree: jest.fn().mockResolvedValue(mockTree),
-      } as unknown as UrlReaderService;
+      });
 
       const result = await fetchRepoFiles(
         mockUrlReader,
@@ -68,9 +68,9 @@ describe('fileOperations', () => {
         files: jest.fn().mockResolvedValue([mockFile1, mockFile2, mockFile3]),
       };
 
-      const mockUrlReader = {
+      const mockUrlReader = mockServices.urlReader.mock({
         readTree: jest.fn().mockResolvedValue(mockTree),
-      } as unknown as UrlReaderService;
+      });
 
       const result = await fetchRepoFiles(
         mockUrlReader,
@@ -88,9 +88,9 @@ describe('fileOperations', () => {
         files: jest.fn().mockResolvedValue([]),
       };
 
-      const mockUrlReader = {
+      const mockUrlReader = mockServices.urlReader.mock({
         readTree: jest.fn().mockResolvedValue(mockTree),
-      } as unknown as UrlReaderService;
+      });
 
       const result = await fetchRepoFiles(
         mockUrlReader,
@@ -101,9 +101,9 @@ describe('fileOperations', () => {
     });
 
     it('should throw error when readTree fails', async () => {
-      const mockUrlReader = {
+      const mockUrlReader = mockServices.urlReader.mock({
         readTree: jest.fn().mockRejectedValue(new Error('Network error')),
-      } as unknown as UrlReaderService;
+      });
 
       await expect(
         fetchRepoFiles(mockUrlReader, 'https://github.com/org/repo'),
@@ -115,9 +115,9 @@ describe('fileOperations', () => {
         files: jest.fn().mockRejectedValue(new Error('Tree error')),
       };
 
-      const mockUrlReader = {
+      const mockUrlReader = mockServices.urlReader.mock({
         readTree: jest.fn().mockResolvedValue(mockTree),
-      } as unknown as UrlReaderService;
+      });
 
       await expect(
         fetchRepoFiles(mockUrlReader, 'https://github.com/org/repo'),
@@ -136,9 +136,9 @@ describe('fileOperations', () => {
         files: jest.fn().mockResolvedValue([mockFile]),
       };
 
-      const mockUrlReader = {
+      const mockUrlReader = mockServices.urlReader.mock({
         readTree: jest.fn().mockResolvedValue(mockTree),
-      } as unknown as UrlReaderService;
+      });
 
       const result = await fetchRepoFiles(
         mockUrlReader,
