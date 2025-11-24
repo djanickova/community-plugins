@@ -21,6 +21,170 @@ import { fetchRepoFiles } from './vcs/utils/fileOperations';
 import { fetchAndCompareFiles } from './comparison';
 import { extractTemplateSourceUrl } from './template/entity';
 import type { VcsProviderRegistry } from './vcs/VcsProviderRegistry';
+import type { VcsProvider, ParsedUrl } from './vcs/VcsProvider';
+
+/**
+ * Context information for VCS providers and URLs
+ *
+ * @internal
+ */
+type VcsProviderContext = {
+  templateProvider: VcsProvider;
+  templateUrlInfo: ParsedUrl;
+  scaffoldedProvider: VcsProvider;
+  scaffoldedUrl: string;
+};
+
+/**
+ * Retrieves and validates VCS providers for both template and scaffolded repositories
+ *
+ * @param vcsRegistry - VCS provider registry
+ * @param templateSourceUrl - Template source URL
+ * @param scaffoldedEntity - Scaffolded entity
+ * @param logger - Logger service
+ * @returns VCS provider context or null if validation fails
+ *
+ * @internal
+ */
+async function getVcsProviders(
+  vcsRegistry: VcsProviderRegistry,
+  templateSourceUrl: string,
+  scaffoldedEntity: Entity,
+  logger: LoggerService,
+): Promise<VcsProviderContext | null> {
+  // Get the provider for the template URL
+  const templateProvider = vcsRegistry.getProviderForUrl(templateSourceUrl);
+  if (!templateProvider) {
+    logger.debug(
+      `No VCS provider found for template URL: ${templateSourceUrl}`,
+    );
+    return null;
+  }
+
+  const templateUrlInfo = templateProvider.parseUrl(templateSourceUrl);
+  if (!templateUrlInfo) {
+    logger.debug(`Could not parse template URL: ${templateSourceUrl}`);
+    return null;
+  }
+
+  // Get the provider for the scaffolded entity
+  const scaffoldedProvider = vcsRegistry.getProviderForEntity(scaffoldedEntity);
+  if (!scaffoldedProvider) {
+    logger.debug(
+      `No VCS provider found for entity ${scaffoldedEntity.metadata.name}`,
+    );
+    return null;
+  }
+
+  const scaffoldedUrl = scaffoldedProvider.extractRepoUrl(scaffoldedEntity);
+  if (!scaffoldedUrl) {
+    logger.debug(
+      `Could not extract repository URL from entity ${scaffoldedEntity.metadata.name}`,
+    );
+    return null;
+  }
+
+  return {
+    templateProvider,
+    templateUrlInfo,
+    scaffoldedProvider,
+    scaffoldedUrl,
+  };
+}
+
+/**
+ * Fetches and compares files between template and scaffolded repositories
+ *
+ * @param urlReader - UrlReaderService instance
+ * @param scaffoldedUrl - Scaffolded repository URL
+ * @param templateFiles - Pre-fetched template files
+ * @param logger - Logger service
+ * @param entityName - Entity name for logging
+ * @returns Map of files to update or null if comparison fails or no changes found
+ *
+ * @internal
+ */
+async function getFilesToUpdate(
+  urlReader: UrlReaderService,
+  scaffoldedUrl: string,
+  templateFiles: Map<string, string>,
+  logger: LoggerService,
+  entityName: string,
+): Promise<Map<string, string | null> | null> {
+  const filesToUpdate = await fetchAndCompareFiles(
+    urlReader,
+    scaffoldedUrl,
+    templateFiles,
+  );
+
+  if (!filesToUpdate) {
+    logger.error(`Error fetching or comparing files for entity ${entityName}`);
+    return null;
+  }
+
+  if (filesToUpdate.size === 0) {
+    logger.info(
+      `No differences found between template and scaffolded repository for entity ${entityName}. Skipping pull request creation.`,
+    );
+    return null;
+  }
+
+  return filesToUpdate;
+}
+
+/**
+ * Submits a pull request with template updates
+ *
+ * @param scaffoldedProvider - VCS provider for scaffolded repository
+ * @param scaffoldedEntity - The scaffolded entity
+ * @param scaffoldedUrl - Scaffolded repository URL
+ * @param templateEntity - The template entity
+ * @param templateUrlInfo - Parsed template URL information
+ * @param filesToUpdate - Map of files to create/update/delete
+ * @param previousVersion - Previous version of the template
+ * @param currentVersion - Current version of the template
+ * @param token - Auth token for catalog API
+ * @param logger - Logger service
+ *
+ * @internal
+ */
+async function submitPullRequest(
+  scaffoldedProvider: VcsProvider,
+  scaffoldedEntity: Entity,
+  scaffoldedUrl: string,
+  templateEntity: Entity,
+  templateUrlInfo: ParsedUrl,
+  filesToUpdate: Map<string, string | null>,
+  previousVersion: string,
+  currentVersion: string,
+  token: string,
+  logger: LoggerService,
+): Promise<void> {
+  logger.info(
+    `Creating template sync pull request for entity ${scaffoldedEntity.metadata.name}`,
+  );
+
+  const templateInfo = {
+    owner: templateUrlInfo.owner,
+    repo: templateUrlInfo.repo,
+    name: templateEntity.metadata.title ?? templateEntity.metadata.name,
+    previousVersion,
+    currentVersion,
+    componentName: scaffoldedEntity.metadata.name,
+  };
+
+  const reviewer = await scaffoldedProvider.getReviewerFromOwner(
+    scaffoldedEntity,
+    token,
+  );
+
+  await scaffoldedProvider.createPullRequest(
+    scaffoldedUrl,
+    filesToUpdate,
+    templateInfo,
+    reviewer,
+  );
+}
 
 /**
  * Creates a pull request to sync template changes with a scaffolded repository
@@ -50,82 +214,39 @@ async function createTemplateUpdatePullRequest(
   token: string,
   templateFiles: Map<string, string>,
 ): Promise<void> {
-  // Get the provider for the template URL
-  const templateProvider = vcsRegistry.getProviderForUrl(templateSourceUrl);
-  if (!templateProvider) {
-    logger.debug(
-      `No VCS provider found for template URL: ${templateSourceUrl}`,
-    );
-    return;
-  }
-
-  const templateUrlInfo = templateProvider.parseUrl(templateSourceUrl);
-  if (!templateUrlInfo) {
-    logger.debug(`Could not parse template URL: ${templateSourceUrl}`);
-    return;
-  }
-
-  // Get the provider for the scaffolded entity
-  const scaffoldedProvider = vcsRegistry.getProviderForEntity(scaffoldedEntity);
-  if (!scaffoldedProvider) {
-    logger.debug(
-      `No VCS provider found for entity ${scaffoldedEntity.metadata.name}`,
-    );
-    return;
-  }
-
-  const scaffoldedUrl = scaffoldedProvider.extractRepoUrl(scaffoldedEntity);
-  if (!scaffoldedUrl) {
-    logger.debug(
-      `Could not extract repository URL from entity ${scaffoldedEntity.metadata.name}`,
-    );
+  const providers = await getVcsProviders(
+    vcsRegistry,
+    templateSourceUrl,
+    scaffoldedEntity,
+    logger,
+  );
+  if (!providers) {
     return;
   }
 
   try {
-    const filesToUpdate = await fetchAndCompareFiles(
+    const filesToUpdate = await getFilesToUpdate(
       urlReader,
-      scaffoldedUrl,
+      providers.scaffoldedUrl,
       templateFiles,
+      logger,
+      scaffoldedEntity.metadata.name,
     );
-
     if (!filesToUpdate) {
-      logger.error(
-        `Error fetching or comparing files for entity ${scaffoldedEntity.metadata.name}`,
-      );
       return;
     }
 
-    if (filesToUpdate.size === 0) {
-      logger.info(
-        `No differences found between template and scaffolded repository for entity ${scaffoldedEntity.metadata.name}. Skipping pull request creation.`,
-      );
-      return;
-    }
-
-    logger.info(
-      `Creating template sync pull request for entity ${scaffoldedEntity.metadata.name}`,
-    );
-
-    const templateInfo = {
-      owner: templateUrlInfo.owner,
-      repo: templateUrlInfo.repo,
-      name: templateEntity.metadata.title ?? templateEntity.metadata.name,
+    await submitPullRequest(
+      providers.scaffoldedProvider,
+      scaffoldedEntity,
+      providers.scaffoldedUrl,
+      templateEntity,
+      providers.templateUrlInfo,
+      filesToUpdate,
       previousVersion,
       currentVersion,
-      componentName: scaffoldedEntity.metadata.name,
-    };
-
-    const reviewer = await scaffoldedProvider.getReviewerFromOwner(
-      scaffoldedEntity,
       token,
-    );
-
-    await scaffoldedProvider.createPullRequest(
-      scaffoldedUrl,
-      filesToUpdate,
-      templateInfo,
-      reviewer,
+      logger,
     );
   } catch (error) {
     logger.error(
