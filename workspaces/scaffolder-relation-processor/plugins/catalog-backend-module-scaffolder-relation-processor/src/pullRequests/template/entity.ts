@@ -39,7 +39,7 @@ export function extractTemplateSourceUrl(
     if (step.action === 'fetch:template' && step.input?.url) {
       const url = step.input.url;
 
-      // If URL is relative (starts with './'), combine with source location
+      // If URL is relative (starts with './', eg. './skeleton'), combine with source location
       if (url.startsWith('./')) {
         // Try to get a VCS provider that can extract the base URL from the entity
         const provider = vcsRegistry.getProviderForEntity(templateEntity);
