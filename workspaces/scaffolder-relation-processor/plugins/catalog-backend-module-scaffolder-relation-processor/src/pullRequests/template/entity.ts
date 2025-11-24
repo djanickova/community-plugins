@@ -15,6 +15,7 @@
  */
 
 import type { Entity } from '@backstage/catalog-model';
+import { extractGithubRepoUrl } from '../vcs/github';
 
 /**
  * Extracts the template source URL from a template entity
@@ -34,7 +35,25 @@ export function extractTemplateSourceUrl(
 
   for (const step of spec.steps) {
     if (step.action === 'fetch:template' && step.input?.url) {
-      return step.input.url;
+      const url = step.input.url;
+
+      // If URL is relative (starts with './'), combine with source location
+      if (url.startsWith('./')) {
+        const baseUrl = extractGithubRepoUrl(templateEntity);
+
+        if (!baseUrl) {
+          return null;
+        }
+
+        const cleanBaseUrl = baseUrl.endsWith('/')
+          ? baseUrl.slice(0, -1)
+          : baseUrl;
+        const relativePath = url.startsWith('./') ? url.substring(2) : url;
+
+        return `${cleanBaseUrl}/${relativePath}`;
+      }
+
+      return url;
     }
   }
 

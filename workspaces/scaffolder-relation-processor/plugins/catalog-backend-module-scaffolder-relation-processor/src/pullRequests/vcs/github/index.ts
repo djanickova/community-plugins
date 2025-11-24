@@ -292,14 +292,14 @@ export async function getOwnerGitHubLogin(
 /**
  * Extracts GitHub repository URL from entity annotations
  *
- * @param scaffoldedEntity - The scaffolded entity
+ * @param entity - A backstage entity
  * @returns Repository URL (including host for self-hosted GitHub instances), or null if not found
  *
  * @internal
  */
-export function extractGithubRepoUrl(scaffoldedEntity: Entity): string | null {
+export function extractGithubRepoUrl(entity: Entity): string | null {
   const sourceLocation =
-    scaffoldedEntity.metadata.annotations?.['backstage.io/source-location'];
+    entity.metadata.annotations?.['backstage.io/source-location'];
 
   if (!sourceLocation) {
     return null;
