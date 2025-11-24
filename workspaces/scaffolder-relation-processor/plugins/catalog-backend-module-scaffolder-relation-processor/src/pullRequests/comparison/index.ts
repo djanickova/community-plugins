@@ -15,7 +15,7 @@
  */
 
 import { UrlReaderService } from '@backstage/backend-plugin-api';
-import { fetchRepoFiles, findCommonFiles } from '../vcs/common';
+import { fetchRepoFiles, findCommonFiles } from '../vcs/utils/fileOperations';
 import {
   compareCommonFiles,
   findScaffoldedOnlyFiles,

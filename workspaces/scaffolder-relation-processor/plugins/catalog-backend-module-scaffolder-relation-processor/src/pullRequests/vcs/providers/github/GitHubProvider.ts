@@ -32,10 +32,10 @@ import {
   createTemplateUpgradeCommitMessage,
   createTemplateUpgradePrBody,
   createTemplateUpgradePrTitle,
-} from '../common';
+} from '../../utils/prFormatting';
 import { CatalogClient } from '@backstage/catalog-client';
 import type { Entity } from '@backstage/catalog-model';
-import type { VcsProvider, ParsedUrl, TemplateInfo } from '../VcsProvider';
+import type { VcsProvider, ParsedUrl, TemplateInfo } from '../../VcsProvider';
 
 /**
  * GitHub implementation of VCS provider

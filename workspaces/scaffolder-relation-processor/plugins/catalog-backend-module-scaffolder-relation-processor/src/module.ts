@@ -27,7 +27,7 @@ import { handleTemplateUpdateNotifications } from './templateVersionUtils';
 import { readScaffolderRelationProcessorConfig } from './templateVersionUtils';
 import { TEMPLATE_VERSION_UPDATED_TOPIC } from './constants';
 import { VcsProviderRegistry } from './pullRequests/vcs/VcsProviderRegistry';
-import { GitHubProvider } from './pullRequests/vcs/github';
+import { GitHubProvider } from './pullRequests/vcs/providers/github/GitHubProvider';
 
 /**
  * Catalog processor that adds link relation between scaffolder templates and their generated entities

@@ -19,10 +19,10 @@ import {
   createTemplateUpgradeCommitMessage,
   createTemplateUpgradePrBody,
   createTemplateUpgradePrTitle,
-} from './common';
-import { TemplateInfo } from './github/types';
+} from './prFormatting';
+import { TemplateInfo } from '../VcsProvider';
 
-describe('common', () => {
+describe('prFormatting', () => {
   const createMockTemplateInfo = (
     overrides?: Partial<TemplateInfo>,
   ): TemplateInfo => ({
@@ -136,7 +136,7 @@ describe('common', () => {
 
       expect(result).toContain('Update template to new version');
       expect(result).toContain('scaffolder-relation-processor');
-      expect(result).toContain('my-org/my-template@main');
+      expect(result).toContain('my-org/my-template');
       expect(result).toContain('Updated 5 file(s)');
       expect(result).toContain('Please manually review');
     });
@@ -152,7 +152,7 @@ describe('common', () => {
       const result = createTemplateUpgradePrBody(templateInfo, 3);
 
       expect(result).toContain('scaffolder-relation-processor');
-      expect(result).toContain('**Template Source:** my-org/my-template@main');
+      expect(result).toContain('**Template Source:** my-org/my-template');
       expect(result).toContain('**Updated Files:** 3 file(s)');
       expect(result).toContain('Please manually review');
     });

@@ -17,7 +17,7 @@
 import { CatalogClient } from '@backstage/catalog-client';
 import { LoggerService, UrlReaderService } from '@backstage/backend-plugin-api';
 import type { Entity } from '@backstage/catalog-model';
-import { fetchRepoFiles } from './vcs/common';
+import { fetchRepoFiles } from './vcs/utils/fileOperations';
 import { fetchAndCompareFiles } from './comparison';
 import { extractTemplateSourceUrl } from './template/entity';
 import type { VcsProviderRegistry } from './vcs/VcsProviderRegistry';
@@ -39,7 +39,7 @@ import type { VcsProviderRegistry } from './vcs/VcsProviderRegistry';
  *
  * @internal
  */
-async function createTemplateSyncPullRequest(
+async function createTemplateUpdatePullRequest(
   logger: LoggerService,
   urlReader: UrlReaderService,
   vcsRegistry: VcsProviderRegistry,
@@ -161,12 +161,10 @@ export async function handleTemplateUpdatePullRequest(
   previousVersion: string,
   currentVersion: string,
 ) {
-  // Get the template entity to extract source URL
   const templateEntity = await catalogClient.getEntityByRef(entityRef, {
     token,
   });
 
-  // Create pull requests to sync template changes for each scaffolded entity
   if (templateEntity) {
     const templateSourceUrl = extractTemplateSourceUrl(
       templateEntity,
@@ -191,7 +189,7 @@ export async function handleTemplateUpdatePullRequest(
 
     // Process each scaffolded entity with pre-fetched template files
     for (const entity of scaffoldedEntities) {
-      await createTemplateSyncPullRequest(
+      await createTemplateUpdatePullRequest(
         logger,
         urlReader,
         vcsRegistry,
