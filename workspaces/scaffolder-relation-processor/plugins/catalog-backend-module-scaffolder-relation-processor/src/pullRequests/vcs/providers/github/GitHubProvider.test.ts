@@ -15,26 +15,18 @@
  */
 
 import { GitHubProvider } from './GitHubProvider';
-import type { Config } from '@backstage/config';
-import type { LoggerService } from '@backstage/backend-plugin-api';
 import type { CatalogClient } from '@backstage/catalog-client';
 import type { Entity } from '@backstage/catalog-model';
 import { ScmIntegrations } from '@backstage/integration';
+import { mockServices } from '@backstage/backend-test-utils';
 
 // Mock dependencies
 jest.mock('@backstage/integration');
 jest.mock('git-url-parse');
 
 describe('GitHubProvider', () => {
-  const mockLogger: LoggerService = {
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
-    child: jest.fn(),
-  };
-
-  const mockConfig = {} as Config;
+  const mockLogger = mockServices.logger.mock();
+  const mockConfig = mockServices.rootConfig();
   const mockCatalogClient = {
     getEntityByRef: jest.fn(),
   } as unknown as CatalogClient;
