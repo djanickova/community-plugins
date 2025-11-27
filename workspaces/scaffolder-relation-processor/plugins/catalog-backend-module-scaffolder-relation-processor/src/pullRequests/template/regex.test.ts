@@ -16,7 +16,6 @@
 
 import {
   TEMPLATE_VARIABLE_REGEX,
-  ONLY_TEMPLATE_VARIABLE_REGEX,
   KEY_VALUE_EXTRACTION_REGEX,
   JINJA2_CONDITIONAL_REGEX,
 } from './regex';
@@ -36,26 +35,6 @@ describe('regex patterns', () => {
     it('should not match non-template strings', () => {
       expect(TEMPLATE_VARIABLE_REGEX.test('name: my-component')).toBe(false);
       expect(TEMPLATE_VARIABLE_REGEX.test('description: A test')).toBe(false);
-    });
-  });
-
-  describe('ONLY_TEMPLATE_VARIABLE_REGEX', () => {
-    it('should match lines with only template variables', () => {
-      expect(ONLY_TEMPLATE_VARIABLE_REGEX.test('${{ values.name }}')).toBe(
-        true,
-      );
-      expect(
-        ONLY_TEMPLATE_VARIABLE_REGEX.test('${{ values.description }}'),
-      ).toBe(true);
-    });
-
-    it('should not match lines with text before or after template variable', () => {
-      expect(
-        ONLY_TEMPLATE_VARIABLE_REGEX.test('name: ${{ values.name }}'),
-      ).toBe(false);
-      expect(
-        ONLY_TEMPLATE_VARIABLE_REGEX.test('# ${{ values.description }}'),
-      ).toBe(false);
     });
   });
 
