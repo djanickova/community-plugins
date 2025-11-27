@@ -21,12 +21,6 @@
 export const TEMPLATE_VARIABLE_REGEX = /\$\{\{[^}]+\}\}/;
 
 /**
- * Matches lines that contain ONLY a template variable (with optional whitespace)
- * Example: "${{ values.description }}"
- */
-export const ONLY_TEMPLATE_VARIABLE_REGEX = /^\$\{\{[^}]+\}\}$/;
-
-/**
  * Extracts the key from a key: value pair line (everything before the colon)
  * Example: "name: value" -> "name"
  */

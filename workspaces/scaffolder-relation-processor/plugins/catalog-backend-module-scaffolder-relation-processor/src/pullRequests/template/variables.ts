@@ -16,7 +16,6 @@
 
 import {
   TEMPLATE_VARIABLE_REGEX,
-  ONLY_TEMPLATE_VARIABLE_REGEX,
   KEY_VALUE_EXTRACTION_REGEX,
   JINJA2_CONDITIONAL_REGEX,
 } from './regex';
@@ -127,45 +126,21 @@ function buildScaffoldedKeyMap(scaffoldedLines: string[]): Map<string, string> {
 }
 
 /**
- * Checks if a line contains only a template variable
- *
- * @param line - Line to check
- * @returns True if the line contains only a template variable
- *
- * @internal
- */
-function isOnlyTemplateVariable(line: string): boolean {
-  return ONLY_TEMPLATE_VARIABLE_REGEX.test(line.trim());
-}
-
-/**
  * Processes a template line that contains template variables
  *
  * @param templateLine - Line from template file
- * @param lineIndex - Index of the line in the template
- * @param scaffoldedLines - Array of lines from scaffolded file
  * @param scaffoldedKeyMap - Map of keys to scaffolded lines
- * @returns Processed line, empty string if the line should be replaced with an empty line, or null if the line should be removed
+ * @returns Processed line if the key is found in the scaffolded key map, otherwise the original template line
  *
  * @internal
  */
 function processTemplateVariableLine(
   templateLine: string,
-  lineIndex: number,
-  scaffoldedLines: string[],
   scaffoldedKeyMap: Map<string, string>,
 ): string | null {
-  if (isOnlyTemplateVariable(templateLine)) {
-    return templateLine;
-  }
-
   const templateKey = extractKeyFromKeyValuePair(templateLine);
 
   if (!templateKey) {
-    // No key found (no colon) - this might be a line like "## ${{ values.name }}"
-    if (lineIndex < scaffoldedLines.length) {
-      return scaffoldedLines[lineIndex];
-    }
     return templateLine;
   }
 
@@ -175,7 +150,7 @@ function processTemplateVariableLine(
     return replaceTemplateVariables(templateLine, scaffoldedLine);
   }
 
-  return null;
+  return templateLine;
 }
 
 /**
@@ -207,8 +182,6 @@ export function preprocessTemplate(
     if (TEMPLATE_VARIABLE_REGEX.test(templateLine)) {
       const processedLine = processTemplateVariableLine(
         templateLine,
-        i,
-        scaffoldedLines,
         scaffoldedKeyMap,
       );
 
