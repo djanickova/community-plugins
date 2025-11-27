@@ -97,7 +97,7 @@ owner: guest`;
     expect(result).toContain('${{ values.description }}');
   });
 
-  it('should handle template with no matching scaffolded keys', () => {
+  it('should preserve template lines with no matching scaffolded keys', () => {
     const templateContent = `name: \${{ values.name }}
 newField: \${{ values.newField }}`;
 
@@ -107,7 +107,7 @@ description: test`;
     const result = preprocessTemplate(templateContent, scaffoldedContent);
 
     expect(result).toContain('name: my-component');
-    expect(result).not.toContain('newField');
+    expect(result).toContain('newField: ${{ values.newField }}');
   });
 
   it('should handle empty template content', () => {
