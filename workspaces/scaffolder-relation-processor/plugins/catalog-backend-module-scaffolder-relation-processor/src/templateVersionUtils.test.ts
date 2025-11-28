@@ -28,6 +28,7 @@ import {
   DEFAULT_NOTIFICATION_ENABLED,
   DEFAULT_NOTIFICATION_TITLE,
 } from './constants';
+import { VcsProviderRegistry } from './pullRequests/vcs/VcsProviderRegistry';
 
 // Mock external dependencies
 jest.mock('@backstage/catalog-client');
@@ -35,7 +36,10 @@ jest.mock('@backstage/catalog-client');
 describe('templateVersionUtils', () => {
   let mockCatalogClient: jest.Mocked<CatalogClient>;
   let mockNotificationService: jest.Mocked<NotificationService>;
+  let mockVcsRegistry: VcsProviderRegistry;
   const mockAuthService = mockServices.auth();
+  const mockLogger = mockServices.logger.mock();
+  const mockUrlReader = mockServices.urlReader.mock();
   const mockProcessorConfig = {
     notifications: {
       templateUpdate: {
@@ -60,6 +64,8 @@ describe('templateVersionUtils', () => {
     mockNotificationService = {
       send: jest.fn().mockResolvedValue(undefined),
     };
+
+    mockVcsRegistry = new VcsProviderRegistry();
   });
 
   describe('handleTemplateUpdateNotifications', () => {
@@ -110,6 +116,9 @@ describe('templateVersionUtils', () => {
         mockAuthService,
         mockProcessorConfig,
         payload,
+        mockLogger,
+        mockUrlReader,
+        mockVcsRegistry,
       );
 
       expect(mockCatalogClient.getEntities).toHaveBeenCalledWith(
@@ -120,7 +129,9 @@ describe('templateVersionUtils', () => {
             'metadata.namespace',
             'metadata.name',
             'metadata.title',
+            'metadata.annotations',
             'relations',
+            'spec',
           ],
         },
         {
@@ -192,6 +203,9 @@ describe('templateVersionUtils', () => {
         mockAuthService,
         mockProcessorConfig,
         payload,
+        mockLogger,
+        mockUrlReader,
+        mockVcsRegistry,
       );
 
       // Should send 2 notifications (one to each owner)
@@ -226,6 +240,9 @@ describe('templateVersionUtils', () => {
         mockAuthService,
         mockProcessorConfig,
         payload,
+        mockLogger,
+        mockUrlReader,
+        mockVcsRegistry,
       );
 
       // Should not send any notifications
@@ -243,6 +260,9 @@ describe('templateVersionUtils', () => {
         mockAuthService,
         mockProcessorConfig,
         payload,
+        mockLogger,
+        mockUrlReader,
+        mockVcsRegistry,
       );
 
       expect(mockNotificationService.send).not.toHaveBeenCalled();
@@ -266,6 +286,9 @@ describe('templateVersionUtils', () => {
         mockAuthService,
         mockProcessorConfig,
         payload,
+        mockLogger,
+        mockUrlReader,
+        mockVcsRegistry,
       );
 
       expect(mockNotificationService.send).toHaveBeenCalledTimes(2);
@@ -320,6 +343,9 @@ describe('templateVersionUtils', () => {
         mockAuthService,
         mockProcessorConfig,
         payload,
+        mockLogger,
+        mockUrlReader,
+        mockVcsRegistry,
       );
 
       const calls = mockNotificationService.send.mock.calls;
@@ -359,6 +385,9 @@ describe('templateVersionUtils', () => {
         mockAuthService,
         mockProcessorConfig,
         payload,
+        mockLogger,
+        mockUrlReader,
+        mockVcsRegistry,
       );
 
       expect(mockNotificationService.send).toHaveBeenCalledWith({

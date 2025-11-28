@@ -26,6 +26,8 @@ import { ScaffolderRelationEntityProcessor } from './ScaffolderRelationEntityPro
 import { handleTemplateUpdateNotifications } from './templateVersionUtils';
 import { readScaffolderRelationProcessorConfig } from './templateVersionUtils';
 import { TEMPLATE_VERSION_UPDATED_TOPIC } from './constants';
+import { VcsProviderRegistry } from './pullRequests/vcs/VcsProviderRegistry';
+import { GitHubProvider } from './pullRequests/vcs/providers/github/GitHubProvider';
 
 /**
  * Catalog processor that adds link relation between scaffolder templates and their generated entities
@@ -45,6 +47,7 @@ export const catalogModuleScaffolderRelationProcessor = createBackendModule({
         notifications: notificationService,
         auth: coreServices.auth,
         discovery: coreServices.discovery,
+        urlReader: coreServices.urlReader,
       },
       async init({
         catalog,
@@ -54,6 +57,7 @@ export const catalogModuleScaffolderRelationProcessor = createBackendModule({
         notifications,
         auth,
         discovery,
+        urlReader,
       }) {
         logger.debug(
           'Registering the scaffolder-relation-processor catalog module',
@@ -62,6 +66,19 @@ export const catalogModuleScaffolderRelationProcessor = createBackendModule({
         const processorConfig = readScaffolderRelationProcessorConfig(config);
 
         const catalogClient = new CatalogClient({ discoveryApi: discovery });
+
+        // Initialize VCS provider registry
+        const vcsRegistry = new VcsProviderRegistry();
+
+        // Register GitHub provider
+        const githubProvider = new GitHubProvider(
+          logger,
+          config,
+          catalogClient,
+        );
+        vcsRegistry.registerProvider(githubProvider);
+
+        logger.debug('Registered VCS providers: github');
 
         // Only subscribe to events if notifications are enabled
         if (processorConfig.notifications?.templateUpdate?.enabled) {
@@ -86,6 +103,9 @@ export const catalogModuleScaffolderRelationProcessor = createBackendModule({
                 auth,
                 processorConfig,
                 payload,
+                logger,
+                urlReader,
+                vcsRegistry,
               );
             },
           });

@@ -32,6 +32,9 @@ import {
 } from './constants';
 import { ScaffolderRelationProcessorConfig } from './types';
 import type { Config } from '@backstage/config';
+import { LoggerService, UrlReaderService } from '@backstage/backend-plugin-api';
+import { handleTemplateUpdatePullRequest } from './pullRequests';
+import type { VcsProviderRegistry } from './pullRequests/vcs/VcsProviderRegistry';
 
 /**
  * Cache structure for storing template version information
@@ -168,6 +171,9 @@ async function sendNotificationsToOwners(
  * @param auth - Auth service to get authentication token
  * @param processorConfig - Parsed scaffolder relation processor config
  * @param payload - Template update payload containing entity ref and version info
+ * @param logger - Logger service for logging diffs
+ * @param urlReader - UrlReaderService for fetching repository files
+ * @param vcsRegistry - VCS provider registry
  *
  * @internal
  */
@@ -181,6 +187,9 @@ export async function handleTemplateUpdateNotifications(
     previousVersion: string;
     currentVersion: string;
   },
+  logger: LoggerService,
+  urlReader: UrlReaderService,
+  vcsRegistry: VcsProviderRegistry,
 ): Promise<void> {
   const { token } = await auth.getPluginRequestToken({
     onBehalfOf: await auth.getOwnServiceCredentials(),
@@ -195,10 +204,24 @@ export async function handleTemplateUpdateNotifications(
         'metadata.namespace',
         'metadata.name',
         'metadata.title',
+        'metadata.annotations',
         'relations',
+        'spec',
       ],
     },
     { token },
+  );
+
+  await handleTemplateUpdatePullRequest(
+    catalogClient,
+    token,
+    payload.entityRef,
+    logger,
+    urlReader,
+    vcsRegistry,
+    scaffoldedEntities.items,
+    payload.previousVersion,
+    payload.currentVersion,
   );
 
   await sendNotificationsToOwners(
