@@ -48,6 +48,7 @@
     "@backstage/plugin-events-node": "^0.4.16",
     "@backstage/plugin-notifications-common": "^0.1.1",
     "@backstage/plugin-notifications-node": "^0.2.20",
+    "@gitbeaker/rest": "^42.0.0",
     "@octokit/core": "^6.0.0",
     "git-url-parse": "^16.1.0",
     "octokit-plugin-create-pull-request": "^6.0.1"
