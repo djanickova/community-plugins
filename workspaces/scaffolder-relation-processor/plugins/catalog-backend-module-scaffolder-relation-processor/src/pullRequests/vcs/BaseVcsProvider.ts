@@ -133,7 +133,7 @@ export abstract class BaseVcsProvider implements VcsProvider {
    * Parses a repository URL to extract owner, repo, branch, and path
    *
    * @param url - Repository URL (e.g., https://github.com/owner/repo/tree/branch/path)
-   * @returns Parsed URL information, or null if parsing fails
+   * @returns Parsed URL information (owner, repo), or null if parsing fails
    */
   parseUrl(url: string): ParsedUrl | null {
     try {
@@ -146,8 +146,6 @@ export abstract class BaseVcsProvider implements VcsProvider {
       return {
         owner: parsed.owner,
         repo: parsed.name,
-        branch: parsed.ref || undefined,
-        path: parsed.filepath || undefined,
       };
     } catch {
       return null;

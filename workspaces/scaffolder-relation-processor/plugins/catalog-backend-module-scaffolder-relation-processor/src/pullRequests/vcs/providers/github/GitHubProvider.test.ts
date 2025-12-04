@@ -262,8 +262,6 @@ describe('GitHubProvider', () => {
       expect(result).toEqual({
         owner: 'test-owner',
         repo: 'test-repo',
-        branch: 'main',
-        path: 'src/path',
       });
     });
 
