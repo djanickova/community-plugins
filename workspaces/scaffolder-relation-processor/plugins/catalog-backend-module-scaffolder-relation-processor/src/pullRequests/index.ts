@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import type { Config } from '@backstage/config';
 import { CatalogClient } from '@backstage/catalog-client';
 import { LoggerService, UrlReaderService } from '@backstage/backend-plugin-api';
 import type { Entity } from '@backstage/catalog-model';
@@ -264,6 +265,7 @@ async function createTemplateUpdatePullRequest(
  * @param logger - Logger service
  * @param urlReader - UrlReaderService instance
  * @param vcsRegistry - VCS provider registry
+ * @param config - Backstage config for SCM integrations
  * @param scaffoldedEntities - Array of scaffolded entities
  * @param previousVersion - Previous version of the template
  * @param currentVersion - Current version of the template
@@ -277,6 +279,7 @@ export async function handleTemplateUpdatePullRequest(
   logger: LoggerService,
   urlReader: UrlReaderService,
   vcsRegistry: VcsProviderRegistry,
+  config: Config,
   scaffoldedEntities: Entity[],
   previousVersion: string,
   currentVersion: string,
@@ -289,6 +292,8 @@ export async function handleTemplateUpdatePullRequest(
     const templateSourceUrl = extractTemplateSourceUrl(
       templateEntity,
       vcsRegistry,
+      config,
+      logger,
     );
     if (!templateSourceUrl) {
       logger.warn(
