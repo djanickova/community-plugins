@@ -114,7 +114,7 @@ describe('GitLabProvider', () => {
   });
 
   describe('extractRepoUrl', () => {
-    it('should extract GitLab URL from entity annotations', () => {
+    it('should extract GitLab URL from entity managed-by-location annotation', () => {
       const mockIntegration = {
         gitlab: {
           byHost: jest.fn().mockReturnValue({ config: {} }),
@@ -130,17 +130,19 @@ describe('GitLabProvider', () => {
         metadata: {
           name: 'test',
           annotations: {
-            'backstage.io/source-location': 'url:https://gitlab.com/org/repo',
+            'backstage.io/managed-by-location':
+              'url:https://gitlab.com/org/repo/-/blob/main/catalog-info.yaml',
           },
         },
       };
 
       const result = provider.extractRepoUrl(entity);
 
-      expect(result).toBe('https://gitlab.com/org/repo');
+      // Should convert blob to tree and remove filename
+      expect(result).toBe('https://gitlab.com/org/repo/-/tree/main/');
     });
 
-    it('should handle URLs without "url:" prefix', () => {
+    it('should convert blob to tree in GitLab URLs', () => {
       const mockIntegration = {
         gitlab: {
           byHost: jest.fn().mockReturnValue({ config: {} }),
@@ -156,14 +158,15 @@ describe('GitLabProvider', () => {
         metadata: {
           name: 'test',
           annotations: {
-            'backstage.io/source-location': 'https://gitlab.com/org/repo',
+            'backstage.io/managed-by-location':
+              'url:https://gitlab.com/org/repo/-/blob/main/src/catalog-info.yaml',
           },
         },
       };
 
       const result = provider.extractRepoUrl(entity);
 
-      expect(result).toBe('https://gitlab.com/org/repo');
+      expect(result).toBe('https://gitlab.com/org/repo/-/tree/main/src/');
     });
 
     it('should return null when entity has no annotations', () => {
@@ -180,7 +183,7 @@ describe('GitLabProvider', () => {
       expect(result).toBeNull();
     });
 
-    it('should return null when entity has no source-location annotation', () => {
+    it('should return null when entity has no managed-by-location annotation', () => {
       const entity: Entity = {
         apiVersion: 'backstage.io/v1alpha1',
         kind: 'Component',
@@ -213,7 +216,26 @@ describe('GitLabProvider', () => {
         metadata: {
           name: 'test',
           annotations: {
-            'backstage.io/source-location': 'url:https://github.com/org/repo',
+            'backstage.io/managed-by-location':
+              'url:https://github.com/org/repo/blob/main/catalog-info.yaml',
+          },
+        },
+      };
+
+      const result = provider.extractRepoUrl(entity);
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null for non-URL location types', () => {
+      const entity: Entity = {
+        apiVersion: 'backstage.io/v1alpha1',
+        kind: 'Component',
+        metadata: {
+          name: 'test',
+          annotations: {
+            'backstage.io/managed-by-location':
+              'file:/path/to/catalog-info.yaml',
           },
         },
       };
