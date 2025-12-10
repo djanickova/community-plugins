@@ -174,6 +174,7 @@ async function sendNotificationsToOwners(
  * @param logger - Logger service for logging diffs
  * @param urlReader - UrlReaderService for fetching repository files
  * @param vcsRegistry - VCS provider registry
+ * @param config - Backstage config for SCM integrations
  *
  * @internal
  */
@@ -190,6 +191,7 @@ export async function handleTemplateUpdateNotifications(
   logger: LoggerService,
   urlReader: UrlReaderService,
   vcsRegistry: VcsProviderRegistry,
+  config: Config,
 ): Promise<void> {
   const { token } = await auth.getPluginRequestToken({
     onBehalfOf: await auth.getOwnServiceCredentials(),
@@ -219,6 +221,7 @@ export async function handleTemplateUpdateNotifications(
     logger,
     urlReader,
     vcsRegistry,
+    config,
     scaffoldedEntities.items,
     payload.previousVersion,
     payload.currentVersion,

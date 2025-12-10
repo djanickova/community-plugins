@@ -16,26 +16,49 @@
 
 import { extractTemplateSourceUrl } from './entity';
 import type { Entity } from '@backstage/catalog-model';
+import { ANNOTATION_LOCATION } from '@backstage/catalog-model';
 import type { VcsProviderRegistry } from '../vcs/VcsProviderRegistry';
 import type { VcsProvider } from '../vcs/VcsProvider';
+import { ScmIntegrations } from '@backstage/integration';
+import { mockServices } from '@backstage/backend-test-utils';
+
+// Mock ScmIntegrations
+jest.mock('@backstage/integration');
 
 describe('extractTemplateSourceUrl', () => {
-  const mockProvider: VcsProvider = {
+  const mockConfig = mockServices.rootConfig();
+  const mockLogger = mockServices.logger.mock();
+
+  // Mock provider that returns a base URL with trailing slash
+  const createMockProvider = (baseUrl: string | null): VcsProvider => ({
     getName: () => 'mock',
     canHandle: () => true,
-    extractRepoUrl: () =>
-      'https://github.com/org/repo/tree/main/templates/template-a',
+    extractRepoUrl: () => baseUrl,
     parseUrl: () => null,
     createPullRequest: async () => {},
     getReviewerFromOwner: async () => null,
-  };
+  });
 
-  const mockRegistry = {
-    registerProvider: jest.fn(),
-    getProviderForUrl: jest.fn(),
-    getProviderForEntity: jest.fn(() => mockProvider),
-    getProviders: jest.fn(() => [mockProvider]),
-  } as unknown as VcsProviderRegistry;
+  const createMockRegistry = (provider: VcsProvider | null) =>
+    ({
+      registerProvider: jest.fn(),
+      getProviderForUrl: jest.fn(),
+      getProviderForEntity: jest.fn(() => provider),
+      getProviders: jest.fn(() => (provider ? [provider] : [])),
+    } as unknown as VcsProviderRegistry);
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // Mock ScmIntegrations.fromConfig to return a mock with resolveUrl
+    (ScmIntegrations.fromConfig as jest.Mock).mockReturnValue({
+      resolveUrl: jest.fn(({ url, base }) => {
+        // Simple mock implementation that combines base and relative URL
+        const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
+        const relativePath = url.startsWith('./') ? url.substring(2) : url;
+        return `${cleanBase}/${relativePath}`;
+      }),
+    });
+  });
 
   it('should extract absolute URL from fetch:template action', () => {
     const entity: Entity = {
@@ -56,20 +79,26 @@ describe('extractTemplateSourceUrl', () => {
       },
     };
 
-    const result = extractTemplateSourceUrl(entity, mockRegistry);
+    const mockRegistry = createMockRegistry(createMockProvider(null));
+    const result = extractTemplateSourceUrl(
+      entity,
+      mockRegistry,
+      mockConfig,
+      mockLogger,
+    );
 
     expect(result).toBe('https://github.com/org/repo/tree/main/template');
   });
 
-  it('should resolve relative URL by combining with source location', () => {
+  it('should resolve relative URL using provider extractRepoUrl (GitHub)', () => {
     const entity: Entity = {
       apiVersion: 'scaffolder.backstage.io/v1beta3',
       kind: 'Template',
       metadata: {
         name: 'test-template',
         annotations: {
-          'backstage.io/source-location':
-            'url:https://github.com/org/repo/tree/main/templates/template-a',
+          [ANNOTATION_LOCATION]:
+            'url:https://github.com/org/repo/blob/main/templates/template-a/catalog-info.yaml',
         },
       },
       spec: {
@@ -84,42 +113,63 @@ describe('extractTemplateSourceUrl', () => {
       },
     };
 
-    const result = extractTemplateSourceUrl(entity, mockRegistry);
+    // Provider returns base URL (already processed by extractRepoUrl)
+    const mockProvider = createMockProvider(
+      'https://github.com/org/repo/tree/main/templates/template-a/',
+    );
+    const mockRegistry = createMockRegistry(mockProvider);
+
+    const result = extractTemplateSourceUrl(
+      entity,
+      mockRegistry,
+      mockConfig,
+      mockLogger,
+    );
 
     expect(result).toBe(
       'https://github.com/org/repo/tree/main/templates/template-a/skeleton',
     );
+    expect(ScmIntegrations.fromConfig).toHaveBeenCalledWith(mockConfig);
   });
 
-  it('should handle relative URL with trailing slash in base URL', () => {
-    const providerWithTrailingSlash: VcsProvider = {
-      ...mockProvider,
-      extractRepoUrl: () => 'https://github.com/org/repo/tree/main/templates/',
-    };
-
-    const registryWithTrailingSlash = {
-      ...mockRegistry,
-      getProviderForEntity: jest.fn(() => providerWithTrailingSlash),
-    } as unknown as VcsProviderRegistry;
-
+  it('should resolve relative URL using provider extractRepoUrl (GitLab)', () => {
     const entity: Entity = {
       apiVersion: 'scaffolder.backstage.io/v1beta3',
       kind: 'Template',
-      metadata: { name: 'test-template' },
+      metadata: {
+        name: 'test-template',
+        annotations: {
+          [ANNOTATION_LOCATION]:
+            'url:https://gitlab.com/org/repo/-/blob/main/templates/template-a/catalog-info.yaml',
+        },
+      },
       spec: {
         steps: [
           {
             action: 'fetch:template',
-            input: { url: './skeleton' },
+            input: {
+              url: './skeleton',
+            },
           },
         ],
       },
     };
 
-    const result = extractTemplateSourceUrl(entity, registryWithTrailingSlash);
+    // Provider returns base URL with /-/tree/ (already processed by extractRepoUrl)
+    const mockProvider = createMockProvider(
+      'https://gitlab.com/org/repo/-/tree/main/templates/template-a/',
+    );
+    const mockRegistry = createMockRegistry(mockProvider);
+
+    const result = extractTemplateSourceUrl(
+      entity,
+      mockRegistry,
+      mockConfig,
+      mockLogger,
+    );
 
     expect(result).toBe(
-      'https://github.com/org/repo/tree/main/templates/skeleton',
+      'https://gitlab.com/org/repo/-/tree/main/templates/template-a/skeleton',
     );
   });
 
@@ -131,7 +181,13 @@ describe('extractTemplateSourceUrl', () => {
       spec: {},
     };
 
-    const result = extractTemplateSourceUrl(entity, mockRegistry);
+    const mockRegistry = createMockRegistry(createMockProvider(null));
+    const result = extractTemplateSourceUrl(
+      entity,
+      mockRegistry,
+      mockConfig,
+      mockLogger,
+    );
 
     expect(result).toBeNull();
   });
@@ -151,17 +207,18 @@ describe('extractTemplateSourceUrl', () => {
       },
     };
 
-    const result = extractTemplateSourceUrl(entity, mockRegistry);
+    const mockRegistry = createMockRegistry(createMockProvider(null));
+    const result = extractTemplateSourceUrl(
+      entity,
+      mockRegistry,
+      mockConfig,
+      mockLogger,
+    );
 
     expect(result).toBeNull();
   });
 
   it('should return null when relative URL but no provider found', () => {
-    const registryWithNoProvider = {
-      ...mockRegistry,
-      getProviderForEntity: jest.fn(() => null),
-    } as unknown as VcsProviderRegistry;
-
     const entity: Entity = {
       apiVersion: 'scaffolder.backstage.io/v1beta3',
       kind: 'Template',
@@ -176,22 +233,21 @@ describe('extractTemplateSourceUrl', () => {
       },
     };
 
-    const result = extractTemplateSourceUrl(entity, registryWithNoProvider);
+    const mockRegistry = createMockRegistry(null);
+    const result = extractTemplateSourceUrl(
+      entity,
+      mockRegistry,
+      mockConfig,
+      mockLogger,
+    );
 
     expect(result).toBeNull();
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('No VCS provider found'),
+    );
   });
 
   it('should return null when relative URL but provider cannot extract base URL', () => {
-    const providerWithNoUrl: VcsProvider = {
-      ...mockProvider,
-      extractRepoUrl: () => null,
-    };
-
-    const registryWithNoUrl = {
-      ...mockRegistry,
-      getProviderForEntity: jest.fn(() => providerWithNoUrl),
-    } as unknown as VcsProviderRegistry;
-
     const entity: Entity = {
       apiVersion: 'scaffolder.backstage.io/v1beta3',
       kind: 'Template',
@@ -206,8 +262,98 @@ describe('extractTemplateSourceUrl', () => {
       },
     };
 
-    const result = extractTemplateSourceUrl(entity, registryWithNoUrl);
+    const mockProvider = createMockProvider(null);
+    const mockRegistry = createMockRegistry(mockProvider);
+
+    const result = extractTemplateSourceUrl(
+      entity,
+      mockRegistry,
+      mockConfig,
+      mockLogger,
+    );
 
     expect(result).toBeNull();
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Could not extract base URL'),
+    );
+  });
+
+  it('should return null when ScmIntegrations.resolveUrl throws an error', () => {
+    (ScmIntegrations.fromConfig as jest.Mock).mockReturnValue({
+      resolveUrl: jest.fn(() => {
+        throw new Error('Failed to resolve URL');
+      }),
+    });
+
+    const entity: Entity = {
+      apiVersion: 'scaffolder.backstage.io/v1beta3',
+      kind: 'Template',
+      metadata: {
+        name: 'test-template',
+      },
+      spec: {
+        steps: [
+          {
+            action: 'fetch:template',
+            input: {
+              url: './skeleton',
+            },
+          },
+        ],
+      },
+    };
+
+    const mockProvider = createMockProvider(
+      'https://github.com/org/repo/tree/main/templates/',
+    );
+    const mockRegistry = createMockRegistry(mockProvider);
+
+    const result = extractTemplateSourceUrl(
+      entity,
+      mockRegistry,
+      mockConfig,
+      mockLogger,
+    );
+
+    expect(result).toBeNull();
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to resolve template URL'),
+    );
+  });
+
+  it('should handle nested relative paths', () => {
+    const entity: Entity = {
+      apiVersion: 'scaffolder.backstage.io/v1beta3',
+      kind: 'Template',
+      metadata: {
+        name: 'test-template',
+      },
+      spec: {
+        steps: [
+          {
+            action: 'fetch:template',
+            input: {
+              url: './templates/skeleton',
+            },
+          },
+        ],
+      },
+    };
+
+    const mockProvider = createMockProvider(
+      'https://github.com/org/repo/tree/main/',
+    );
+    const mockRegistry = createMockRegistry(mockProvider);
+
+    const result = extractTemplateSourceUrl(
+      entity,
+      mockRegistry,
+      mockConfig,
+      mockLogger,
+    );
+
+    expect(result).toBe(
+      'https://github.com/org/repo/tree/main/templates/skeleton',
+    );
   });
 });

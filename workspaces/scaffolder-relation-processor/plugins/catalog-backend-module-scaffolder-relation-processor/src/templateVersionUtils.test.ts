@@ -40,6 +40,7 @@ describe('templateVersionUtils', () => {
   const mockAuthService = mockServices.auth();
   const mockLogger = mockServices.logger.mock();
   const mockUrlReader = mockServices.urlReader.mock();
+  const mockConfig = mockServices.rootConfig();
   const mockProcessorConfig = {
     notifications: {
       templateUpdate: {
@@ -119,6 +120,7 @@ describe('templateVersionUtils', () => {
         mockLogger,
         mockUrlReader,
         mockVcsRegistry,
+        mockConfig,
       );
 
       expect(mockCatalogClient.getEntities).toHaveBeenCalledWith(
@@ -206,6 +208,7 @@ describe('templateVersionUtils', () => {
         mockLogger,
         mockUrlReader,
         mockVcsRegistry,
+        mockConfig,
       );
 
       // Should send 2 notifications (one to each owner)
@@ -243,6 +246,7 @@ describe('templateVersionUtils', () => {
         mockLogger,
         mockUrlReader,
         mockVcsRegistry,
+        mockConfig,
       );
 
       // Should not send any notifications
@@ -263,6 +267,7 @@ describe('templateVersionUtils', () => {
         mockLogger,
         mockUrlReader,
         mockVcsRegistry,
+        mockConfig,
       );
 
       expect(mockNotificationService.send).not.toHaveBeenCalled();
@@ -289,6 +294,7 @@ describe('templateVersionUtils', () => {
         mockLogger,
         mockUrlReader,
         mockVcsRegistry,
+        mockConfig,
       );
 
       expect(mockNotificationService.send).toHaveBeenCalledTimes(2);
@@ -346,6 +352,7 @@ describe('templateVersionUtils', () => {
         mockLogger,
         mockUrlReader,
         mockVcsRegistry,
+        mockConfig,
       );
 
       const calls = mockNotificationService.send.mock.calls;
@@ -388,6 +395,7 @@ describe('templateVersionUtils', () => {
         mockLogger,
         mockUrlReader,
         mockVcsRegistry,
+        mockConfig,
       );
 
       expect(mockNotificationService.send).toHaveBeenCalledWith({

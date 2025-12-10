@@ -15,8 +15,6 @@
  */
 
 import { Octokit } from '@octokit/core';
-import type { Config } from '@backstage/config';
-import { LoggerService } from '@backstage/backend-plugin-api';
 import {
   createPullRequest,
   DELETE_FILE,
@@ -26,29 +24,22 @@ import {
   DefaultGithubCredentialsProvider,
 } from '@backstage/integration';
 import { OctokitWithCreatePullRequest } from './types';
-import gitUrlParse from 'git-url-parse';
 import {
   createTemplateUpgradeBranchName,
   createTemplateUpgradeCommitMessage,
   createTemplateUpgradePrBody,
   createTemplateUpgradePrTitle,
 } from '../../utils/prFormatting';
-import { CatalogClient } from '@backstage/catalog-client';
 import type { Entity } from '@backstage/catalog-model';
-import type { VcsProvider, ParsedUrl, TemplateInfo } from '../../VcsProvider';
+import type { TemplateInfo } from '../../VcsProvider';
+import { BaseVcsProvider } from '../../BaseVcsProvider';
 
 /**
  * GitHub implementation of VCS provider
  *
- * @public
+ * @internal
  */
-export class GitHubProvider implements VcsProvider {
-  constructor(
-    private readonly logger: LoggerService,
-    private readonly config: Config,
-    private readonly catalogClient: CatalogClient,
-  ) {}
-
+export class GitHubProvider extends BaseVcsProvider {
   getName(): string {
     return 'github';
   }
@@ -61,47 +52,6 @@ export class GitHubProvider implements VcsProvider {
       return githubIntegration !== undefined;
     } catch {
       return false;
-    }
-  }
-
-  extractRepoUrl(entity: Entity): string | null {
-    const sourceLocation =
-      entity.metadata.annotations?.['backstage.io/source-location'];
-
-    if (!sourceLocation) {
-      return null;
-    }
-
-    // Source location format: "url:https://github.com/owner/repo" or "url:https://github.example.com/owner/repo"
-    // Strip the "url:" prefix if present
-    const url = sourceLocation.startsWith('url:')
-      ? sourceLocation.substring(4)
-      : sourceLocation;
-
-    // Verify this is a GitHub URL we can handle
-    if (!this.canHandle(url)) {
-      return null;
-    }
-
-    return url;
-  }
-
-  parseUrl(url: string): ParsedUrl | null {
-    try {
-      const parsed = gitUrlParse(url);
-
-      if (!parsed.owner || !parsed.name) {
-        return null;
-      }
-
-      return {
-        owner: parsed.owner,
-        repo: parsed.name,
-        branch: parsed.ref || undefined,
-        path: parsed.filepath || undefined,
-      };
-    } catch {
-      return null;
     }
   }
 
@@ -318,7 +268,7 @@ export class GitHubProvider implements VcsProvider {
       const githubLogin =
         ownerEntity.metadata.annotations?.['github.com/user-login'];
       return githubLogin || null;
-    } catch (error) {
+    } catch {
       return null;
     }
   }

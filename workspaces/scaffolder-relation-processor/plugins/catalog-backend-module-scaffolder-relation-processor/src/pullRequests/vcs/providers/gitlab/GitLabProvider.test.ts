@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { GitHubProvider } from './GitHubProvider';
+import { GitLabProvider } from './GitLabProvider';
 import type { CatalogClient } from '@backstage/catalog-client';
 import type { Entity } from '@backstage/catalog-model';
 import { ScmIntegrations } from '@backstage/integration';
@@ -23,31 +23,32 @@ import { mockServices } from '@backstage/backend-test-utils';
 // Mock dependencies
 jest.mock('@backstage/integration');
 jest.mock('git-url-parse');
+jest.mock('@gitbeaker/rest');
 
-describe('GitHubProvider', () => {
+describe('GitLabProvider', () => {
   const mockLogger = mockServices.logger.mock();
   const mockConfig = mockServices.rootConfig();
   const mockCatalogClient = {
     getEntityByRef: jest.fn(),
   } as unknown as CatalogClient;
 
-  let provider: GitHubProvider;
+  let provider: GitLabProvider;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    provider = new GitHubProvider(mockLogger, mockConfig, mockCatalogClient);
+    provider = new GitLabProvider(mockLogger, mockConfig, mockCatalogClient);
   });
 
   describe('getName', () => {
-    it('should return "github"', () => {
-      expect(provider.getName()).toBe('github');
+    it('should return "gitlab"', () => {
+      expect(provider.getName()).toBe('gitlab');
     });
   });
 
   describe('canHandle', () => {
-    it('should return true for github.com URLs when integration is configured', () => {
+    it('should return true for gitlab.com URLs when integration is configured', () => {
       const mockIntegration = {
-        github: {
+        gitlab: {
           byHost: jest.fn().mockReturnValue({ config: {} }),
         },
       };
@@ -55,14 +56,14 @@ describe('GitHubProvider', () => {
         mockIntegration,
       );
 
-      const result = provider.canHandle('https://github.com/org/repo');
+      const result = provider.canHandle('https://gitlab.com/org/repo');
 
       expect(result).toBe(true);
     });
 
-    it('should return true for GitHub Enterprise URLs when integration is configured', () => {
+    it('should return true for self-hosted GitLab URLs when integration is configured', () => {
       const mockIntegration = {
-        github: {
+        gitlab: {
           byHost: jest.fn().mockReturnValue({ config: {} }),
         },
       };
@@ -70,35 +71,14 @@ describe('GitHubProvider', () => {
         mockIntegration,
       );
 
-      const result = provider.canHandle('https://github.example.com/org/repo');
+      const result = provider.canHandle('https://gitlab.example.com/org/repo');
 
       expect(result).toBe(true);
     });
 
-    it('should return false when no GitHub integration is configured', () => {
+    it('should return false when no GitLab integration is configured', () => {
       const mockIntegration = {
-        github: {
-          byHost: jest.fn().mockReturnValue(undefined),
-        },
-      };
-      (ScmIntegrations.fromConfig as jest.Mock).mockReturnValue(
-        mockIntegration,
-      );
-
-      const result = provider.canHandle('https://github.com/org/repo');
-
-      expect(result).toBe(false);
-    });
-
-    it('should return false for invalid URLs', () => {
-      const result = provider.canHandle('not-a-url');
-
-      expect(result).toBe(false);
-    });
-
-    it('should return false for non-GitHub URLs', () => {
-      const mockIntegration = {
-        github: {
+        gitlab: {
           byHost: jest.fn().mockReturnValue(undefined),
         },
       };
@@ -110,12 +90,33 @@ describe('GitHubProvider', () => {
 
       expect(result).toBe(false);
     });
+
+    it('should return false for invalid URLs', () => {
+      const result = provider.canHandle('not-a-url');
+
+      expect(result).toBe(false);
+    });
+
+    it('should return false for non-GitLab URLs', () => {
+      const mockIntegration = {
+        gitlab: {
+          byHost: jest.fn().mockReturnValue(undefined),
+        },
+      };
+      (ScmIntegrations.fromConfig as jest.Mock).mockReturnValue(
+        mockIntegration,
+      );
+
+      const result = provider.canHandle('https://github.com/org/repo');
+
+      expect(result).toBe(false);
+    });
   });
 
   describe('extractRepoUrl', () => {
-    it('should extract GitHub URL from entity managed-by-location annotation', () => {
+    it('should extract GitLab URL from entity managed-by-location annotation', () => {
       const mockIntegration = {
-        github: {
+        gitlab: {
           byHost: jest.fn().mockReturnValue({ config: {} }),
         },
       };
@@ -130,7 +131,7 @@ describe('GitHubProvider', () => {
           name: 'test',
           annotations: {
             'backstage.io/managed-by-location':
-              'url:https://github.com/org/repo/blob/main/catalog-info.yaml',
+              'url:https://gitlab.com/org/repo/-/blob/main/catalog-info.yaml',
           },
         },
       };
@@ -138,12 +139,12 @@ describe('GitHubProvider', () => {
       const result = provider.extractRepoUrl(entity);
 
       // Should convert blob to tree and remove filename
-      expect(result).toBe('https://github.com/org/repo/tree/main/');
+      expect(result).toBe('https://gitlab.com/org/repo/-/tree/main/');
     });
 
-    it('should convert blob to tree in GitHub URLs', () => {
+    it('should convert blob to tree in GitLab URLs', () => {
       const mockIntegration = {
-        github: {
+        gitlab: {
           byHost: jest.fn().mockReturnValue({ config: {} }),
         },
       };
@@ -158,14 +159,14 @@ describe('GitHubProvider', () => {
           name: 'test',
           annotations: {
             'backstage.io/managed-by-location':
-              'url:https://github.com/org/repo/blob/main/src/catalog-info.yaml',
+              'url:https://gitlab.com/org/repo/-/blob/main/src/catalog-info.yaml',
           },
         },
       };
 
       const result = provider.extractRepoUrl(entity);
 
-      expect(result).toBe('https://github.com/org/repo/tree/main/src/');
+      expect(result).toBe('https://gitlab.com/org/repo/-/tree/main/src/');
     });
 
     it('should return null when entity has no annotations', () => {
@@ -199,9 +200,9 @@ describe('GitHubProvider', () => {
       expect(result).toBeNull();
     });
 
-    it('should return null when URL is not a GitHub URL', () => {
+    it('should return null when URL is not a GitLab URL', () => {
       const mockIntegration = {
-        github: {
+        gitlab: {
           byHost: jest.fn().mockReturnValue(undefined),
         },
       };
@@ -216,7 +217,7 @@ describe('GitHubProvider', () => {
           name: 'test',
           annotations: {
             'backstage.io/managed-by-location':
-              'url:https://gitlab.com/org/repo/blob/main/catalog-info.yaml',
+              'url:https://github.com/org/repo/blob/main/catalog-info.yaml',
           },
         },
       };
@@ -246,7 +247,7 @@ describe('GitHubProvider', () => {
   });
 
   describe('parseUrl', () => {
-    it('should parse a GitHub URL successfully', () => {
+    it('should parse a GitLab URL successfully', () => {
       const gitUrlParse = require('git-url-parse');
       gitUrlParse.mockReturnValue({
         owner: 'test-owner',
@@ -256,7 +257,7 @@ describe('GitHubProvider', () => {
       });
 
       const result = provider.parseUrl(
-        'https://github.com/test-owner/test-repo/tree/main/src/path',
+        'https://gitlab.com/test-owner/test-repo/-/tree/main/src/path',
       );
 
       expect(result).toEqual({
@@ -275,7 +276,7 @@ describe('GitHubProvider', () => {
       });
 
       const result = provider.parseUrl(
-        'https://github.com/test-owner/test-repo',
+        'https://gitlab.com/test-owner/test-repo',
       );
 
       expect(result).toEqual({
@@ -293,7 +294,7 @@ describe('GitHubProvider', () => {
         name: 'test-repo',
       });
 
-      const result = provider.parseUrl('https://github.com/test-repo');
+      const result = provider.parseUrl('https://gitlab.com/test-repo');
 
       expect(result).toBeNull();
     });
@@ -305,7 +306,7 @@ describe('GitHubProvider', () => {
         name: null,
       });
 
-      const result = provider.parseUrl('https://github.com/test-owner');
+      const result = provider.parseUrl('https://gitlab.com/test-owner');
 
       expect(result).toBeNull();
     });
@@ -323,14 +324,14 @@ describe('GitHubProvider', () => {
   });
 
   describe('getReviewerFromOwner', () => {
-    it('should return GitHub login for User entity with annotation', async () => {
+    it('should return GitLab username for User entity with annotation', async () => {
       const mockUserEntity: Entity = {
         apiVersion: 'backstage.io/v1alpha1',
         kind: 'User',
         metadata: {
           name: 'test-user',
           annotations: {
-            'github.com/user-login': 'github-user',
+            'gitlab.com/user-login': 'gitlab-user',
           },
         },
       };
@@ -351,7 +352,7 @@ describe('GitHubProvider', () => {
         'test-token',
       );
 
-      expect(result).toBe('github-user');
+      expect(result).toBe('gitlab-user');
       expect(mockCatalogClient.getEntityByRef).toHaveBeenCalledWith(
         'user:default/test-user',
         { token: 'test-token' },
@@ -402,7 +403,7 @@ describe('GitHubProvider', () => {
         metadata: {
           name: 'test-group',
           annotations: {
-            'github.com/user-login': 'github-team',
+            'gitlab.com/user-login': 'gitlab-group',
           },
         },
       };
@@ -426,7 +427,7 @@ describe('GitHubProvider', () => {
       expect(result).toBeNull();
     });
 
-    it('should return null when User has no GitHub annotation', async () => {
+    it('should return null when User has no GitLab annotation', async () => {
       const mockUserEntity: Entity = {
         apiVersion: 'backstage.io/v1alpha1',
         kind: 'User',
@@ -480,7 +481,7 @@ describe('GitHubProvider', () => {
     it('should handle errors gracefully without crashing', async () => {
       // Mock integration that will cause issues downstream
       const mockIntegration = {
-        github: {
+        gitlab: {
           byHost: jest.fn().mockReturnValue(undefined),
         },
       };
@@ -501,7 +502,7 @@ describe('GitHubProvider', () => {
       // Should not throw, just log warning
       await expect(
         provider.createPullRequest(
-          'https://github.com/org/repo',
+          'https://gitlab.com/org/repo',
           filesToUpdate,
           templateInfo,
           null,
@@ -513,7 +514,7 @@ describe('GitHubProvider', () => {
 
     it('should not throw when client creation fails', async () => {
       const mockIntegration = {
-        github: {
+        gitlab: {
           byHost: jest.fn().mockReturnValue(undefined),
         },
       };
@@ -534,7 +535,7 @@ describe('GitHubProvider', () => {
       // Should not throw, just log warning
       await expect(
         provider.createPullRequest(
-          'https://github.com/org/repo',
+          'https://gitlab.com/org/repo',
           filesToUpdate,
           templateInfo,
           null,
@@ -543,7 +544,7 @@ describe('GitHubProvider', () => {
 
       // Should log warning about client creation failure
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Could not get GitHub client'),
+        expect.stringContaining('Could not get GitLab client'),
       );
     });
   });
