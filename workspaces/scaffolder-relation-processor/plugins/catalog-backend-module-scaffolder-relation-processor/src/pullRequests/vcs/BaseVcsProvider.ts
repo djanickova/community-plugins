@@ -23,7 +23,12 @@ import {
   ANNOTATION_LOCATION,
 } from '@backstage/catalog-model';
 import gitUrlParse from 'git-url-parse';
-import type { VcsProvider, ParsedUrl, TemplateInfo } from './VcsProvider';
+import type {
+  VcsProvider,
+  ParsedUrl,
+  TemplateInfo,
+  PullRequestResult,
+} from './VcsProvider';
 
 /**
  * Abstract base class for VCS providers with shared implementations
@@ -59,13 +64,14 @@ export abstract class BaseVcsProvider implements VcsProvider {
    * @param filesToUpdate - Map of file paths to updated content or null for deletions
    * @param templateInfo - Template information including versions and component name
    * @param reviewer - Optional username to request review from
+   * @returns PullRequestResult containing the PR URL, or null if creation failed
    */
   abstract createPullRequest(
     repoUrl: string,
     filesToUpdate: Map<string, string | null>,
     templateInfo: TemplateInfo,
     reviewer: string | null,
-  ): Promise<void>;
+  ): Promise<PullRequestResult | null>;
 
   /**
    * Gets the reviewer username from the scaffolded entity's owner

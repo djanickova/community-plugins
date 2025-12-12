@@ -23,7 +23,7 @@ import {
   createTemplateUpgradePrTitle,
 } from '../../utils/prFormatting';
 import type { Entity } from '@backstage/catalog-model';
-import type { TemplateInfo } from '../../VcsProvider';
+import type { TemplateInfo, PullRequestResult } from '../../VcsProvider';
 import { BaseVcsProvider } from '../../BaseVcsProvider';
 import { GitbeakerClient, PrepareCommitActions } from './types';
 
@@ -53,20 +53,20 @@ export class GitLabProvider extends BaseVcsProvider {
     filesToUpdate: Map<string, string | null>,
     templateInfo: TemplateInfo,
     reviewer: string | null,
-  ): Promise<void> {
+  ): Promise<PullRequestResult | null> {
     try {
       const client = await this.getClient(repoUrl);
       if (!client) {
         this.logger.warn(
           `Could not get GitLab client to create MR for ${repoUrl}`,
         );
-        return;
+        return null;
       }
 
       const projectPath = this.getProjectPath(repoUrl);
       if (!projectPath) {
         this.logger.warn(`Could not parse repository URL: ${repoUrl}`);
-        return;
+        return null;
       }
 
       const branchName = await this.createBranchWithCommit(
@@ -76,7 +76,7 @@ export class GitLabProvider extends BaseVcsProvider {
         templateInfo,
       );
 
-      const mrIid = await this.createMergeRequest(
+      const mrResult = await this.createMergeRequest(
         client,
         projectPath,
         branchName,
@@ -84,15 +84,18 @@ export class GitLabProvider extends BaseVcsProvider {
         filesToUpdate.size,
       );
 
-      if (reviewer && mrIid) {
-        await this.assignReviewer(client, projectPath, mrIid, reviewer);
+      if (reviewer && mrResult.iid) {
+        await this.assignReviewer(client, projectPath, mrResult.iid, reviewer);
       }
+
+      return { url: mrResult.webUrl };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       this.logger.error(
         `Error creating template update merge request for ${repoUrl}: ${errorMessage}`,
       );
+      return null;
     }
   }
 
@@ -185,7 +188,7 @@ export class GitLabProvider extends BaseVcsProvider {
    * @param branchName - Source branch name
    * @param templateInfo - Template information
    * @param fileCount - Number of files being updated
-   * @returns The merge request IID
+   * @returns The merge request IID and web URL
    *
    * @internal
    */
@@ -195,7 +198,7 @@ export class GitLabProvider extends BaseVcsProvider {
     branchName: string,
     templateInfo: TemplateInfo,
     fileCount: number,
-  ): Promise<number> {
+  ): Promise<{ iid: number; webUrl: string }> {
     const project = await client.Projects.show(projectPath);
     const defaultBranch = project.default_branch;
 
@@ -217,7 +220,7 @@ export class GitLabProvider extends BaseVcsProvider {
       `Created template update merge request !${mr.iid} for ${projectPath}: ${mr.web_url}`,
     );
 
-    return mr.iid;
+    return { iid: mr.iid, webUrl: mr.web_url };
   }
 
   /**

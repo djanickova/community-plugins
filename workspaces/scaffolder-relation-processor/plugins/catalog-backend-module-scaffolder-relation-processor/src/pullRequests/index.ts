@@ -22,7 +22,11 @@ import { fetchRepoFiles } from './vcs/utils/fileOperations';
 import { fetchAndCompareFiles } from './comparison';
 import { extractTemplateSourceUrl } from './template/entity';
 import type { VcsProviderRegistry } from './vcs/VcsProviderRegistry';
-import type { VcsProvider, ParsedUrl } from './vcs/VcsProvider';
+import type {
+  VcsProvider,
+  ParsedUrl,
+  PullRequestResult,
+} from './vcs/VcsProvider';
 
 /**
  * Context information for VCS providers and URLs
@@ -146,6 +150,7 @@ async function getFilesToUpdate(
  * @param currentVersion - Current version of the template
  * @param token - Auth token for catalog API
  * @param logger - Logger service
+ * @returns PullRequestResult containing the PR URL, or null if creation failed
  *
  * @internal
  */
@@ -160,7 +165,7 @@ async function submitPullRequest(
   currentVersion: string,
   token: string,
   logger: LoggerService,
-): Promise<void> {
+): Promise<PullRequestResult | null> {
   logger.info(
     `Creating template sync pull request for entity ${scaffoldedEntity.metadata.name}`,
   );
@@ -179,7 +184,7 @@ async function submitPullRequest(
     token,
   );
 
-  await scaffoldedProvider.createPullRequest(
+  return scaffoldedProvider.createPullRequest(
     scaffoldedUrl,
     filesToUpdate,
     templateInfo,
@@ -200,6 +205,7 @@ async function submitPullRequest(
  * @param currentVersion - Current version of the template
  * @param token - Auth token for catalog API
  * @param templateFiles - Pre-fetched template files map
+ * @returns PullRequestResult containing the PR URL, or null if creation failed
  *
  * @internal
  */
@@ -214,7 +220,7 @@ async function createTemplateUpdatePullRequest(
   currentVersion: string,
   token: string,
   templateFiles: Map<string, string>,
-): Promise<void> {
+): Promise<PullRequestResult | null> {
   const providers = await getVcsProviders(
     vcsRegistry,
     templateSourceUrl,
@@ -222,7 +228,7 @@ async function createTemplateUpdatePullRequest(
     logger,
   );
   if (!providers) {
-    return;
+    return null;
   }
 
   try {
@@ -234,10 +240,10 @@ async function createTemplateUpdatePullRequest(
       scaffoldedEntity.metadata.name,
     );
     if (!filesToUpdate) {
-      return;
+      return null;
     }
 
-    await submitPullRequest(
+    return submitPullRequest(
       providers.scaffoldedProvider,
       scaffoldedEntity,
       providers.scaffoldedUrl,
@@ -253,6 +259,7 @@ async function createTemplateUpdatePullRequest(
     logger.error(
       `Error creating template sync pull request for entity ${scaffoldedEntity.metadata.name}: ${error}`,
     );
+    return null;
   }
 }
 
@@ -269,6 +276,7 @@ async function createTemplateUpdatePullRequest(
  * @param scaffoldedEntities - Array of scaffolded entities
  * @param previousVersion - Previous version of the template
  * @param currentVersion - Current version of the template
+ * @returns Map of entity names to their created PR URLs
  *
  * @internal
  */
@@ -283,7 +291,9 @@ export async function handleTemplateUpdatePullRequest(
   scaffoldedEntities: Entity[],
   previousVersion: string,
   currentVersion: string,
-) {
+): Promise<Map<string, string>> {
+  const prResults = new Map<string, string>();
+
   const templateEntity = await catalogClient.getEntityByRef(entityRef, {
     token,
   });
@@ -299,7 +309,7 @@ export async function handleTemplateUpdatePullRequest(
       logger.warn(
         `No template source URL found for template ${templateEntity.metadata.name}. Skipping PR creation.`,
       );
-      return;
+      return prResults;
     }
 
     let templateFiles: Map<string, string>;
@@ -309,12 +319,12 @@ export async function handleTemplateUpdatePullRequest(
       logger.error(
         `Error fetching template files for ${templateEntity.metadata.name}: ${error}. Skipping PR creation.`,
       );
-      return;
+      return prResults;
     }
 
     // Process each scaffolded entity with pre-fetched template files
     for (const entity of scaffoldedEntities) {
-      await createTemplateUpdatePullRequest(
+      const result = await createTemplateUpdatePullRequest(
         logger,
         urlReader,
         vcsRegistry,
@@ -326,6 +336,12 @@ export async function handleTemplateUpdatePullRequest(
         token,
         templateFiles,
       );
+
+      if (result) {
+        prResults.set(entity.metadata.name, result.url);
+      }
     }
   }
+
+  return prResults;
 }

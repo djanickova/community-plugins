@@ -25,9 +25,13 @@ import { NotificationPayload } from '@backstage/plugin-notifications-common';
 import type { Entity } from '@backstage/catalog-model';
 import {
   DEFAULT_NOTIFICATION_DESCRIPTION,
+  DEFAULT_NOTIFICATION_DESCRIPTION_WITH_PR,
   DEFAULT_NOTIFICATION_ENABLED,
   DEFAULT_NOTIFICATION_TITLE,
+  DEFAULT_NOTIFICATION_TITLE_WITH_PR,
+  DEFAULT_PR_ENABLED,
   ENTITY_DISPLAY_NAME_TEMPLATE_VAR,
+  PR_LINK_TEMPLATE_VAR,
   TEMPLATE_VERSION_UPDATED_TOPIC,
 } from './constants';
 import { ScaffolderRelationProcessorConfig } from './types';
@@ -107,6 +111,7 @@ function createEntityCatalogUrl(entity: Entity): string {
  * @param notifications - Notification service to send notifications
  * @param entities - Array of entities that need update notifications sent to their owners
  * @param config - Configuration for notification title and description
+ * @param prUrls - Optional map of entity names to their created PR URLs
  *
  * @internal
  */
@@ -114,6 +119,7 @@ async function sendNotificationsToOwners(
   notifications: NotificationService,
   entities: Entity[],
   config: ScaffolderRelationProcessorConfig,
+  prUrls?: Map<string, string>,
 ): Promise<void> {
   for (const entity of entities) {
     const ownedByRelations =
@@ -126,33 +132,41 @@ async function sendNotificationsToOwners(
       };
 
       const catalogUrl = createEntityCatalogUrl(entity);
+      const prUrl = prUrls?.get(entity.metadata.name);
 
       const entityName = entity.metadata.title ?? entity.metadata.name;
       const entityNameRegex = new RegExp(
         ENTITY_DISPLAY_NAME_TEMPLATE_VAR.replace(/\$/g, '\\$'),
         'g',
       );
+      const prLinkRegex = new RegExp(
+        PR_LINK_TEMPLATE_VAR.replace(/\$/g, '\\$'),
+        'g',
+      );
+
+      const messageConfig = config.notifications?.templateUpdate?.message;
 
       const titleReplaced =
-        config.notifications?.templateUpdate?.message.title.replace(
-          entityNameRegex,
-          entityName,
-        ) || '';
+        messageConfig?.title.replace(entityNameRegex, entityName) || '';
 
       // Capitalize the first word of the title
       const title =
         titleReplaced.charAt(0).toUpperCase() + titleReplaced.slice(1);
 
-      const description =
-        config.notifications?.templateUpdate?.message.description.replace(
-          entityNameRegex,
-          entityName,
-        ) || '';
+      let description =
+        messageConfig?.description.replace(entityNameRegex, entityName) || '';
+
+      // Replace PR link placeholder with PR URL if available, otherwise remove it
+      if (prUrl) {
+        description = description.replace(prLinkRegex, prUrl);
+      } else {
+        description = description.replace(prLinkRegex, '').trim();
+      }
 
       const notificationPayload: NotificationPayload = {
         title,
         description,
-        link: catalogUrl,
+        link: prUrl || catalogUrl,
       };
 
       await notifications.send({
@@ -164,7 +178,7 @@ async function sendNotificationsToOwners(
 }
 
 /**
- * Handles template update notifications by finding scaffolded entities and notifying their owners
+ * Handles template update events by optionally creating PRs and sending notifications
  *
  * @param catalogClient - Catalog client to query for entities
  * @param notifications - Notification service to send notifications
@@ -214,24 +228,33 @@ export async function handleTemplateUpdateNotifications(
     { token },
   );
 
-  await handleTemplateUpdatePullRequest(
-    catalogClient,
-    token,
-    payload.entityRef,
-    logger,
-    urlReader,
-    vcsRegistry,
-    config,
-    scaffoldedEntities.items,
-    payload.previousVersion,
-    payload.currentVersion,
-  );
+  let prUrls: Map<string, string> | undefined;
 
-  await sendNotificationsToOwners(
-    notifications,
-    scaffoldedEntities.items,
-    processorConfig,
-  );
+  // Only create PRs if enabled
+  if (processorConfig.pullRequests?.templateUpdate?.enabled) {
+    prUrls = await handleTemplateUpdatePullRequest(
+      catalogClient,
+      token,
+      payload.entityRef,
+      logger,
+      urlReader,
+      vcsRegistry,
+      config,
+      scaffoldedEntities.items,
+      payload.previousVersion,
+      payload.currentVersion,
+    );
+  }
+
+  // Only send notifications if enabled
+  if (processorConfig.notifications?.templateUpdate?.enabled) {
+    await sendNotificationsToOwners(
+      notifications,
+      scaffoldedEntities.items,
+      processorConfig,
+      prUrls,
+    );
+  }
 }
 
 /**
@@ -245,6 +268,19 @@ export async function handleTemplateUpdateNotifications(
 export function readScaffolderRelationProcessorConfig(
   config: Config,
 ): ScaffolderRelationProcessorConfig {
+  const prEnabled =
+    config.getOptionalBoolean(
+      'scaffolder.pullRequests.templateUpdate.enabled',
+    ) ?? DEFAULT_PR_ENABLED;
+
+  // Use PR-specific defaults when PRs are enabled
+  const defaultTitle = prEnabled
+    ? DEFAULT_NOTIFICATION_TITLE_WITH_PR
+    : DEFAULT_NOTIFICATION_TITLE;
+  const defaultDescription = prEnabled
+    ? DEFAULT_NOTIFICATION_DESCRIPTION_WITH_PR
+    : DEFAULT_NOTIFICATION_DESCRIPTION;
+
   return {
     notifications: {
       templateUpdate: {
@@ -256,12 +292,17 @@ export function readScaffolderRelationProcessorConfig(
           title:
             config.getOptionalString(
               'scaffolder.notifications.templateUpdate.message.title',
-            ) ?? DEFAULT_NOTIFICATION_TITLE,
+            ) ?? defaultTitle,
           description:
             config.getOptionalString(
               'scaffolder.notifications.templateUpdate.message.description',
-            ) ?? DEFAULT_NOTIFICATION_DESCRIPTION,
+            ) ?? defaultDescription,
         },
+      },
+    },
+    pullRequests: {
+      templateUpdate: {
+        enabled: prEnabled,
       },
     },
   };

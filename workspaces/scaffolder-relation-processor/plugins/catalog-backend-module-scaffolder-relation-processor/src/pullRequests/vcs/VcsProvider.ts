@@ -43,6 +43,15 @@ export type TemplateInfo = {
 };
 
 /**
+ * Result of a pull request creation
+ *
+ * @internal
+ */
+export interface PullRequestResult {
+  url: string;
+}
+
+/**
  * Interface for Version Control System providers
  *
  * @public
@@ -84,13 +93,14 @@ export interface VcsProvider {
    * @param filesToUpdate - Map of file paths to updated content or null for deletions
    * @param templateInfo - Template information including versions and component name
    * @param reviewer - Optional username to request review from
+   * @returns PullRequestResult containing the PR URL, or null if creation failed
    */
   createPullRequest(
     repoUrl: string,
     filesToUpdate: Map<string, string | null>,
     templateInfo: TemplateInfo,
     reviewer: string | null,
-  ): Promise<void>;
+  ): Promise<PullRequestResult | null>;
 
   /**
    * Gets the reviewer username from the scaffolded entity's owner

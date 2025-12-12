@@ -89,8 +89,13 @@ export const catalogModuleScaffolderRelationProcessor = createBackendModule({
 
         logger.debug('Registered VCS providers: github, gitlab');
 
-        // Only subscribe to events if notifications are enabled
-        if (processorConfig.notifications?.templateUpdate?.enabled) {
+        const notificationsEnabled =
+          processorConfig.notifications?.templateUpdate?.enabled;
+        const pullRequestsEnabled =
+          processorConfig.pullRequests?.templateUpdate?.enabled;
+
+        // Subscribe to events if either notifications or pull requests are enabled
+        if (notificationsEnabled || pullRequestsEnabled) {
           await events.subscribe({
             id: 'scaffolder-relation-processor',
             topics: [TEMPLATE_VERSION_UPDATED_TOPIC],

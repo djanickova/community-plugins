@@ -51,6 +51,34 @@ export const DEFAULT_NOTIFICATION_DESCRIPTION = `The template used to create ${E
 export const DEFAULT_NOTIFICATION_ENABLED = false;
 
 /**
+ * Default pull request creation enabled
+ *
+ * @public
+ */
+export const DEFAULT_PR_ENABLED = false;
+
+/**
+ * Template variable name for PR link in notification messages
+ *
+ * @public
+ */
+export const PR_LINK_TEMPLATE_VAR = '$PR_LINK';
+
+/**
+ * Default template update notification title when PR is created
+ *
+ * @public
+ */
+export const DEFAULT_NOTIFICATION_TITLE_WITH_PR = `${ENTITY_DISPLAY_NAME_TEMPLATE_VAR} has a template update PR ready`;
+
+/**
+ * Default template update notification description when PR is created
+ *
+ * @public
+ */
+export const DEFAULT_NOTIFICATION_DESCRIPTION_WITH_PR = `The template used to create ${ENTITY_DISPLAY_NAME_TEMPLATE_VAR} has been updated to a new version. A pull request has been created to sync the changes: ${PR_LINK_TEMPLATE_VAR}`;
+
+/**
  * A relation from a scaffolder template entity to the entity it generated.
  * Reverse direction of {@link RELATION_SCAFFOLDED_FROM}
  *

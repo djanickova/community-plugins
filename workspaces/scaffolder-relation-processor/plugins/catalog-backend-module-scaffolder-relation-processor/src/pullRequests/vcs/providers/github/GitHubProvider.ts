@@ -31,7 +31,7 @@ import {
   createTemplateUpgradePrTitle,
 } from '../../utils/prFormatting';
 import type { Entity } from '@backstage/catalog-model';
-import type { TemplateInfo } from '../../VcsProvider';
+import type { TemplateInfo, PullRequestResult } from '../../VcsProvider';
 import { BaseVcsProvider } from '../../BaseVcsProvider';
 
 /**
@@ -60,7 +60,7 @@ export class GitHubProvider extends BaseVcsProvider {
     filesToUpdate: Map<string, string | null>,
     templateInfo: TemplateInfo,
     reviewer: string | null,
-  ): Promise<void> {
+  ): Promise<PullRequestResult | null> {
     try {
       const octokit = await this.getClient(repoUrl);
 
@@ -68,14 +68,14 @@ export class GitHubProvider extends BaseVcsProvider {
         this.logger.warn(
           `Could not get GitHub client to create PR for ${repoUrl}`,
         );
-        return;
+        return null;
       }
 
       // Extract owner and repo from URL
       const parsedUrl = this.parseUrl(repoUrl);
       if (!parsedUrl) {
         this.logger.warn(`Could not parse repository URL: ${repoUrl}`);
-        return;
+        return null;
       }
       const { owner, repo } = parsedUrl;
 
@@ -114,7 +114,7 @@ export class GitHubProvider extends BaseVcsProvider {
 
       if (!pr) {
         this.logger.warn(`No pull request was created for ${owner}/${repo}.`);
-        return;
+        return null;
       }
 
       this.logger.info(
@@ -131,10 +131,13 @@ export class GitHubProvider extends BaseVcsProvider {
           reviewer,
         );
       }
+
+      return { url: pr.data.html_url };
     } catch (error) {
       this.logger.error(
         `Error creating template update pull request for ${repoUrl}: ${error}`,
       );
+      return null;
     }
   }
 
