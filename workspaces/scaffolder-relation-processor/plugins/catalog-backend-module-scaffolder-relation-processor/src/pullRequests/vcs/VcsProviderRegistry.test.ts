@@ -29,7 +29,7 @@ describe('VcsProviderRegistry', () => {
         ? entity.metadata.annotations['backstage.io/source-location']
         : null,
     parseUrl: () => ({ owner: 'test', repo: 'test' }),
-    createPullRequest: async () => {},
+    createPullRequest: async () => null,
     getReviewerFromOwner: async () => null,
   };
 
@@ -43,7 +43,7 @@ describe('VcsProviderRegistry', () => {
         ? entity.metadata.annotations['backstage.io/source-location']
         : null,
     parseUrl: () => ({ owner: 'test', repo: 'test' }),
-    createPullRequest: async () => {},
+    createPullRequest: async () => null,
     getReviewerFromOwner: async () => null,
   };
 

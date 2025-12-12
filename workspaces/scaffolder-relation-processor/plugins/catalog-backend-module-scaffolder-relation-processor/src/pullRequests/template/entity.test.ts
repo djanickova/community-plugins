@@ -35,7 +35,7 @@ describe('extractTemplateSourceUrl', () => {
     canHandle: () => true,
     extractRepoUrl: () => baseUrl,
     parseUrl: () => null,
-    createPullRequest: async () => {},
+    createPullRequest: async () => null,
     getReviewerFromOwner: async () => null,
   });
 
