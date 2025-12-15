@@ -31,6 +31,7 @@ import {
   DEFAULT_NOTIFICATION_TITLE_WITH_PR,
   DEFAULT_PR_ENABLED,
   ENTITY_DISPLAY_NAME_TEMPLATE_VAR,
+  PR_CREATION_FAILED_PREFIX,
   PR_LINK_TEMPLATE_VAR,
   TEMPLATE_VERSION_UPDATED_TOPIC,
 } from './constants';
@@ -39,6 +40,7 @@ import type { Config } from '@backstage/config';
 import { LoggerService, UrlReaderService } from '@backstage/backend-plugin-api';
 import { handleTemplateUpdatePullRequest } from './pullRequests';
 import type { VcsProviderRegistry } from './pullRequests/vcs/VcsProviderRegistry';
+import type { PullRequestResult } from './pullRequests/vcs/VcsProvider';
 
 /**
  * Cache structure for storing template version information
@@ -111,7 +113,9 @@ function createEntityCatalogUrl(entity: Entity): string {
  * @param notifications - Notification service to send notifications
  * @param entities - Array of entities that need update notifications sent to their owners
  * @param config - Configuration for notification title and description
- * @param prUrls - Optional map of entity names to their created PR URLs
+ * @param prResults - Optional map of entity names to their PR creation results.
+ *                    If defined (PRs enabled), only entities in this map get notifications.
+ *                    If undefined (PRs disabled), all entities get notifications.
  *
  * @internal
  */
@@ -119,9 +123,17 @@ async function sendNotificationsToOwners(
   notifications: NotificationService,
   entities: Entity[],
   config: ScaffolderRelationProcessorConfig,
-  prUrls?: Map<string, string>,
+  prResults?: Map<string, PullRequestResult>,
 ): Promise<void> {
   for (const entity of entities) {
+    const prResult = prResults?.get(entity.metadata.name);
+
+    // If PRs are enabled (prResults is defined) but entity is not in the map,
+    // it means there were no changes for this entity - skip notification
+    if (prResults !== undefined && prResult === undefined) {
+      continue;
+    }
+
     const ownedByRelations =
       entity.relations?.filter(rel => rel.type === 'ownedBy') || [];
 
@@ -132,7 +144,6 @@ async function sendNotificationsToOwners(
       };
 
       const catalogUrl = createEntityCatalogUrl(entity);
-      const prUrl = prUrls?.get(entity.metadata.name);
 
       const entityName = entity.metadata.title ?? entity.metadata.name;
       const entityNameRegex = new RegExp(
@@ -144,29 +155,50 @@ async function sendNotificationsToOwners(
         'g',
       );
 
-      const messageConfig = config.notifications?.templateUpdate?.message;
+      let title: string;
+      let description: string;
+      let link: string;
 
-      const titleReplaced =
-        messageConfig?.title.replace(entityNameRegex, entityName) || '';
+      // Check if PR creation failed - use default message with error prefix
+      if (prResult && !prResult.success) {
+        // Use default title and description with error prefix
+        const titleReplaced = DEFAULT_NOTIFICATION_TITLE.replace(
+          entityNameRegex,
+          entityName,
+        );
+        title = titleReplaced.charAt(0).toUpperCase() + titleReplaced.slice(1);
 
-      // Capitalize the first word of the title
-      const title =
-        titleReplaced.charAt(0).toUpperCase() + titleReplaced.slice(1);
-
-      let description =
-        messageConfig?.description.replace(entityNameRegex, entityName) || '';
-
-      // Replace PR link placeholder with PR URL if available, otherwise remove it
-      if (prUrl) {
-        description = description.replace(prLinkRegex, prUrl);
+        const baseDescription = DEFAULT_NOTIFICATION_DESCRIPTION.replace(
+          entityNameRegex,
+          entityName,
+        );
+        description = `${PR_CREATION_FAILED_PREFIX}: ${prResult.error}. ${baseDescription}`;
+        link = catalogUrl;
       } else {
-        description = description.replace(prLinkRegex, '').trim();
+        // Normal flow: use configured message
+        const messageConfig = config.notifications?.templateUpdate?.message;
+
+        const titleReplaced =
+          messageConfig?.title.replace(entityNameRegex, entityName) || '';
+        title = titleReplaced.charAt(0).toUpperCase() + titleReplaced.slice(1);
+
+        description =
+          messageConfig?.description.replace(entityNameRegex, entityName) || '';
+
+        // Replace PR link placeholder with PR URL if available, otherwise remove it
+        if (prResult?.success) {
+          description = description.replace(prLinkRegex, prResult.url);
+          link = prResult.url;
+        } else {
+          description = description.replace(prLinkRegex, '').trim();
+          link = catalogUrl;
+        }
       }
 
       const notificationPayload: NotificationPayload = {
         title,
         description,
-        link: prUrl || catalogUrl,
+        link,
       };
 
       await notifications.send({
@@ -228,11 +260,11 @@ export async function handleTemplateUpdateNotifications(
     { token },
   );
 
-  let prUrls: Map<string, string> | undefined;
+  let prResults: Map<string, PullRequestResult> | undefined;
 
   // Only create PRs if enabled
   if (processorConfig.pullRequests?.templateUpdate?.enabled) {
-    prUrls = await handleTemplateUpdatePullRequest(
+    prResults = await handleTemplateUpdatePullRequest(
       catalogClient,
       token,
       payload.entityRef,
@@ -252,7 +284,7 @@ export async function handleTemplateUpdateNotifications(
       notifications,
       scaffoldedEntities.items,
       processorConfig,
-      prUrls,
+      prResults,
     );
   }
 }

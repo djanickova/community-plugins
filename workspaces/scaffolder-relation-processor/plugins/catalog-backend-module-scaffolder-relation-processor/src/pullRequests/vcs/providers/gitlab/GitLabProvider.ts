@@ -23,7 +23,7 @@ import {
   createTemplateUpgradePrTitle,
 } from '../../utils/prFormatting';
 import type { Entity } from '@backstage/catalog-model';
-import type { TemplateInfo, PullRequestResult } from '../../VcsProvider';
+import type { TemplateInfo, CreatedPullRequest } from '../../VcsProvider';
 import { BaseVcsProvider } from '../../BaseVcsProvider';
 import { GitbeakerClient, PrepareCommitActions } from './types';
 
@@ -53,50 +53,37 @@ export class GitLabProvider extends BaseVcsProvider {
     filesToUpdate: Map<string, string | null>,
     templateInfo: TemplateInfo,
     reviewer: string | null,
-  ): Promise<PullRequestResult | null> {
-    try {
-      const client = await this.getClient(repoUrl);
-      if (!client) {
-        this.logger.warn(
-          `Could not get GitLab client to create MR for ${repoUrl}`,
-        );
-        return null;
-      }
-
-      const projectPath = this.getProjectPath(repoUrl);
-      if (!projectPath) {
-        this.logger.warn(`Could not parse repository URL: ${repoUrl}`);
-        return null;
-      }
-
-      const branchName = await this.createBranchWithCommit(
-        client,
-        projectPath,
-        filesToUpdate,
-        templateInfo,
-      );
-
-      const mrResult = await this.createMergeRequest(
-        client,
-        projectPath,
-        branchName,
-        templateInfo,
-        filesToUpdate.size,
-      );
-
-      if (reviewer && mrResult.iid) {
-        await this.assignReviewer(client, projectPath, mrResult.iid, reviewer);
-      }
-
-      return { url: mrResult.webUrl };
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      this.logger.error(
-        `Error creating template update merge request for ${repoUrl}: ${errorMessage}`,
-      );
-      return null;
+  ): Promise<CreatedPullRequest> {
+    const client = await this.getClient(repoUrl);
+    if (!client) {
+      throw new Error('GitLab authentication failed');
     }
+
+    const projectPath = this.getProjectPath(repoUrl);
+    if (!projectPath) {
+      throw new Error('Invalid repository URL');
+    }
+
+    const branchName = await this.createBranchWithCommit(
+      client,
+      projectPath,
+      filesToUpdate,
+      templateInfo,
+    );
+
+    const mrResult = await this.createMergeRequest(
+      client,
+      projectPath,
+      branchName,
+      templateInfo,
+      filesToUpdate.size,
+    );
+
+    if (reviewer && mrResult.iid) {
+      await this.assignReviewer(client, projectPath, mrResult.iid, reviewer);
+    }
+
+    return { url: mrResult.webUrl };
   }
 
   /**

@@ -26,6 +26,7 @@ import type {
   VcsProvider,
   ParsedUrl,
   PullRequestResult,
+  CreatedPullRequest,
 } from './vcs/VcsProvider';
 
 /**
@@ -105,7 +106,8 @@ async function getVcsProviders(
  * @param templateFiles - Pre-fetched template files
  * @param logger - Logger service
  * @param entityName - Entity name for logging
- * @returns Map of files to update or null if comparison fails or no changes found
+ * @returns Map of files to update, or null if no changes found
+ * @throws Error if fetching or comparing files fails
  *
  * @internal
  */
@@ -123,8 +125,9 @@ async function getFilesToUpdate(
   );
 
   if (!filesToUpdate) {
-    logger.error(`Error fetching or comparing files for entity ${entityName}`);
-    return null;
+    throw new Error(
+      `Failed to fetch or compare files for entity ${entityName}`,
+    );
   }
 
   if (filesToUpdate.size === 0) {
@@ -150,7 +153,8 @@ async function getFilesToUpdate(
  * @param currentVersion - Current version of the template
  * @param token - Auth token for catalog API
  * @param logger - Logger service
- * @returns PullRequestResult containing the PR URL, or null if creation failed
+ * @returns CreatedPullRequest containing the PR URL
+ * @throws Error if PR creation fails
  *
  * @internal
  */
@@ -165,7 +169,7 @@ async function submitPullRequest(
   currentVersion: string,
   token: string,
   logger: LoggerService,
-): Promise<PullRequestResult | null> {
+): Promise<CreatedPullRequest> {
   logger.info(
     `Creating template sync pull request for entity ${scaffoldedEntity.metadata.name}`,
   );
@@ -205,7 +209,8 @@ async function submitPullRequest(
  * @param currentVersion - Current version of the template
  * @param token - Auth token for catalog API
  * @param templateFiles - Pre-fetched template files map
- * @returns PullRequestResult containing the PR URL, or null if creation failed
+ * @returns CreatedPullRequest containing the PR URL
+ * @throws Error if VCS provider is not found, file comparison fails, or PR creation fails
  *
  * @internal
  */
@@ -220,7 +225,7 @@ async function createTemplateUpdatePullRequest(
   currentVersion: string,
   token: string,
   templateFiles: Map<string, string>,
-): Promise<PullRequestResult | null> {
+): Promise<CreatedPullRequest | null> {
   const providers = await getVcsProviders(
     vcsRegistry,
     templateSourceUrl,
@@ -228,39 +233,33 @@ async function createTemplateUpdatePullRequest(
     logger,
   );
   if (!providers) {
+    throw new Error('No VCS provider found for entity');
+  }
+
+  const filesToUpdate = await getFilesToUpdate(
+    urlReader,
+    providers.scaffoldedUrl,
+    templateFiles,
+    logger,
+    scaffoldedEntity.metadata.name,
+  );
+  if (!filesToUpdate) {
+    // No files to update means no changes needed - not an error
     return null;
   }
 
-  try {
-    const filesToUpdate = await getFilesToUpdate(
-      urlReader,
-      providers.scaffoldedUrl,
-      templateFiles,
-      logger,
-      scaffoldedEntity.metadata.name,
-    );
-    if (!filesToUpdate) {
-      return null;
-    }
-
-    return submitPullRequest(
-      providers.scaffoldedProvider,
-      scaffoldedEntity,
-      providers.scaffoldedUrl,
-      templateEntity,
-      providers.templateUrlInfo,
-      filesToUpdate,
-      previousVersion,
-      currentVersion,
-      token,
-      logger,
-    );
-  } catch (error) {
-    logger.error(
-      `Error creating template sync pull request for entity ${scaffoldedEntity.metadata.name}: ${error}`,
-    );
-    return null;
-  }
+  return submitPullRequest(
+    providers.scaffoldedProvider,
+    scaffoldedEntity,
+    providers.scaffoldedUrl,
+    templateEntity,
+    providers.templateUrlInfo,
+    filesToUpdate,
+    previousVersion,
+    currentVersion,
+    token,
+    logger,
+  );
 }
 
 /**
@@ -276,7 +275,7 @@ async function createTemplateUpdatePullRequest(
  * @param scaffoldedEntities - Array of scaffolded entities
  * @param previousVersion - Previous version of the template
  * @param currentVersion - Current version of the template
- * @returns Map of entity names to their created PR URLs
+ * @returns Map of entity names to their PR creation results (success with URL or failure with error)
  *
  * @internal
  */
@@ -291,39 +290,60 @@ export async function handleTemplateUpdatePullRequest(
   scaffoldedEntities: Entity[],
   previousVersion: string,
   currentVersion: string,
-): Promise<Map<string, string>> {
-  const prResults = new Map<string, string>();
+): Promise<Map<string, PullRequestResult>> {
+  const prResults = new Map<string, PullRequestResult>();
+
+  /**
+   * Helper to add failure entries for all scaffolded entities
+   */
+  const addFailureForAllEntities = (errorMessage: string) => {
+    for (const entity of scaffoldedEntities) {
+      prResults.set(entity.metadata.name, {
+        success: false,
+        error: errorMessage,
+      });
+    }
+  };
 
   const templateEntity = await catalogClient.getEntityByRef(entityRef, {
     token,
   });
 
-  if (templateEntity) {
-    const templateSourceUrl = extractTemplateSourceUrl(
-      templateEntity,
-      vcsRegistry,
-      config,
-      logger,
+  if (!templateEntity) {
+    const errorMessage = `Template entity not found: ${entityRef}`;
+    logger.error(errorMessage);
+    addFailureForAllEntities(errorMessage);
+    return prResults;
+  }
+
+  const templateSourceUrl = extractTemplateSourceUrl(
+    templateEntity,
+    vcsRegistry,
+    config,
+    logger,
+  );
+  if (!templateSourceUrl) {
+    const errorMessage = `No template source URL found for template ${templateEntity.metadata.name}`;
+    logger.error(errorMessage);
+    addFailureForAllEntities(errorMessage);
+    return prResults;
+  }
+
+  let templateFiles: Map<string, string>;
+  try {
+    templateFiles = await fetchRepoFiles(urlReader, templateSourceUrl);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error(
+      `Error fetching template files for ${templateEntity.metadata.name}: ${errorMessage}`,
     );
-    if (!templateSourceUrl) {
-      logger.warn(
-        `No template source URL found for template ${templateEntity.metadata.name}. Skipping PR creation.`,
-      );
-      return prResults;
-    }
+    addFailureForAllEntities(`Failed to fetch template files: ${errorMessage}`);
+    return prResults;
+  }
 
-    let templateFiles: Map<string, string>;
+  // Process each scaffolded entity with pre-fetched template files
+  for (const entity of scaffoldedEntities) {
     try {
-      templateFiles = await fetchRepoFiles(urlReader, templateSourceUrl);
-    } catch (error) {
-      logger.error(
-        `Error fetching template files for ${templateEntity.metadata.name}: ${error}. Skipping PR creation.`,
-      );
-      return prResults;
-    }
-
-    // Process each scaffolded entity with pre-fetched template files
-    for (const entity of scaffoldedEntities) {
       const result = await createTemplateUpdatePullRequest(
         logger,
         urlReader,
@@ -337,9 +357,20 @@ export async function handleTemplateUpdatePullRequest(
         templateFiles,
       );
 
+      // Only store results when there was an attempt (null means no changes needed)
       if (result) {
-        prResults.set(entity.metadata.name, result.url);
+        prResults.set(entity.metadata.name, { success: true, url: result.url });
       }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      logger.error(
+        `Error creating template sync pull request for entity ${entity.metadata.name}: ${errorMessage}`,
+      );
+      prResults.set(entity.metadata.name, {
+        success: false,
+        error: errorMessage,
+      });
     }
   }
 

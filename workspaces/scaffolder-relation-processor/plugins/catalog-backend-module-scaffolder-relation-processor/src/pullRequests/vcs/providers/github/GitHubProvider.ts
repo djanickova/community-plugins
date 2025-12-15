@@ -31,7 +31,7 @@ import {
   createTemplateUpgradePrTitle,
 } from '../../utils/prFormatting';
 import type { Entity } from '@backstage/catalog-model';
-import type { TemplateInfo, PullRequestResult } from '../../VcsProvider';
+import type { TemplateInfo, CreatedPullRequest } from '../../VcsProvider';
 import { BaseVcsProvider } from '../../BaseVcsProvider';
 
 /**
@@ -60,85 +60,67 @@ export class GitHubProvider extends BaseVcsProvider {
     filesToUpdate: Map<string, string | null>,
     templateInfo: TemplateInfo,
     reviewer: string | null,
-  ): Promise<PullRequestResult | null> {
-    try {
-      const octokit = await this.getClient(repoUrl);
+  ): Promise<CreatedPullRequest> {
+    const octokit = await this.getClient(repoUrl);
 
-      if (!octokit) {
-        this.logger.warn(
-          `Could not get GitHub client to create PR for ${repoUrl}`,
-        );
-        return null;
-      }
-
-      // Extract owner and repo from URL
-      const parsedUrl = this.parseUrl(repoUrl);
-      if (!parsedUrl) {
-        this.logger.warn(`Could not parse repository URL: ${repoUrl}`);
-        return null;
-      }
-      const { owner, repo } = parsedUrl;
-
-      // Prepare files object for the plugin
-      const files: Record<string, string | typeof DELETE_FILE> = {};
-      for (const [filePath, content] of filesToUpdate.entries()) {
-        files[filePath] = content === null ? DELETE_FILE : content;
-      }
-
-      const branchName = createTemplateUpgradeBranchName(templateInfo);
-      const commitMessage = createTemplateUpgradeCommitMessage(
-        templateInfo,
-        filesToUpdate.size,
-      );
-      const prBody = createTemplateUpgradePrBody(
-        templateInfo,
-        filesToUpdate.size,
-      );
-      const prTitle = createTemplateUpgradePrTitle(templateInfo);
-
-      const prOptions = {
-        owner,
-        repo,
-        title: prTitle,
-        body: prBody,
-        head: branchName,
-        changes: [
-          {
-            files,
-            commit: commitMessage,
-          },
-        ],
-      };
-
-      const pr = await octokit.createPullRequest(prOptions);
-
-      if (!pr) {
-        this.logger.warn(`No pull request was created for ${owner}/${repo}.`);
-        return null;
-      }
-
-      this.logger.info(
-        `Created template update pull request #${pr.data.number} for ${owner}/${repo}: ${pr.data.html_url}`,
-      );
-
-      // Request review from reviewer if provided
-      if (reviewer) {
-        await this.requestReview(
-          octokit,
-          owner,
-          repo,
-          pr.data.number,
-          reviewer,
-        );
-      }
-
-      return { url: pr.data.html_url };
-    } catch (error) {
-      this.logger.error(
-        `Error creating template update pull request for ${repoUrl}: ${error}`,
-      );
-      return null;
+    if (!octokit) {
+      throw new Error('GitHub authentication failed');
     }
+
+    // Extract owner and repo from URL
+    const parsedUrl = this.parseUrl(repoUrl);
+    if (!parsedUrl) {
+      throw new Error('Invalid repository URL');
+    }
+    const { owner, repo } = parsedUrl;
+
+    // Prepare files object for the plugin
+    const files: Record<string, string | typeof DELETE_FILE> = {};
+    for (const [filePath, content] of filesToUpdate.entries()) {
+      files[filePath] = content === null ? DELETE_FILE : content;
+    }
+
+    const branchName = createTemplateUpgradeBranchName(templateInfo);
+    const commitMessage = createTemplateUpgradeCommitMessage(
+      templateInfo,
+      filesToUpdate.size,
+    );
+    const prBody = createTemplateUpgradePrBody(
+      templateInfo,
+      filesToUpdate.size,
+    );
+    const prTitle = createTemplateUpgradePrTitle(templateInfo);
+
+    const prOptions = {
+      owner,
+      repo,
+      title: prTitle,
+      body: prBody,
+      head: branchName,
+      changes: [
+        {
+          files,
+          commit: commitMessage,
+        },
+      ],
+    };
+
+    const pr = await octokit.createPullRequest(prOptions);
+
+    if (!pr) {
+      throw new Error('PR creation returned empty result');
+    }
+
+    this.logger.info(
+      `Created template update pull request #${pr.data.number} for ${owner}/${repo}: ${pr.data.html_url}`,
+    );
+
+    // Request review from reviewer if provided
+    if (reviewer) {
+      await this.requestReview(octokit, owner, repo, pr.data.number, reviewer);
+    }
+
+    return { url: pr.data.html_url };
   }
 
   async getReviewerFromOwner(

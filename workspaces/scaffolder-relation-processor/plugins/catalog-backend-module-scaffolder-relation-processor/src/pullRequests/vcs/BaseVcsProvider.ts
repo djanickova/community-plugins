@@ -27,7 +27,7 @@ import type {
   VcsProvider,
   ParsedUrl,
   TemplateInfo,
-  PullRequestResult,
+  CreatedPullRequest,
 } from './VcsProvider';
 
 /**
@@ -64,14 +64,15 @@ export abstract class BaseVcsProvider implements VcsProvider {
    * @param filesToUpdate - Map of file paths to updated content or null for deletions
    * @param templateInfo - Template information including versions and component name
    * @param reviewer - Optional username to request review from
-   * @returns PullRequestResult containing the PR URL, or null if creation failed
+   * @returns CreatedPullRequest containing the PR URL
+   * @throws Error if PR creation fails
    */
   abstract createPullRequest(
     repoUrl: string,
     filesToUpdate: Map<string, string | null>,
     templateInfo: TemplateInfo,
     reviewer: string | null,
-  ): Promise<PullRequestResult | null>;
+  ): Promise<CreatedPullRequest>;
 
   /**
    * Gets the reviewer username from the scaffolded entity's owner

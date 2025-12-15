@@ -477,7 +477,7 @@ describe('GitHubProvider', () => {
   });
 
   describe('createPullRequest', () => {
-    it('should return null when client creation fails', async () => {
+    it('should throw error when client creation fails', async () => {
       // Mock integration that will cause issues downstream
       const mockIntegration = {
         github: {
@@ -498,20 +498,17 @@ describe('GitHubProvider', () => {
         componentName: 'test-component',
       };
 
-      const result = await provider.createPullRequest(
-        'https://github.com/org/repo',
-        filesToUpdate,
-        templateInfo,
-        null,
-      );
-
-      expect(result).toBeNull();
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Could not get GitHub client'),
-      );
+      await expect(
+        provider.createPullRequest(
+          'https://github.com/org/repo',
+          filesToUpdate,
+          templateInfo,
+          null,
+        ),
+      ).rejects.toThrow('GitHub authentication failed');
     });
 
-    it('should return null and log warning when no integration is configured', async () => {
+    it('should throw error when no integration is configured', async () => {
       const mockIntegration = {
         github: {
           byHost: jest.fn().mockReturnValue(undefined),
@@ -531,49 +528,14 @@ describe('GitHubProvider', () => {
         componentName: 'test-component',
       };
 
-      const result = await provider.createPullRequest(
-        'https://github.com/org/repo',
-        filesToUpdate,
-        templateInfo,
-        null,
-      );
-
-      expect(result).toBeNull();
-      // Should log warning about client creation failure
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Could not get GitHub client'),
-      );
-    });
-
-    it('should handle errors gracefully and return null', async () => {
-      const mockIntegration = {
-        github: {
-          byHost: jest.fn().mockReturnValue(undefined),
-        },
-      };
-      (ScmIntegrations.fromConfig as jest.Mock).mockReturnValue(
-        mockIntegration,
-      );
-
-      const filesToUpdate = new Map([['README.md', 'content']]);
-      const templateInfo = {
-        owner: 'test-owner',
-        repo: 'test-repo',
-        name: 'test-template',
-        previousVersion: '1.0.0',
-        currentVersion: '2.0.0',
-        componentName: 'test-component',
-      };
-
-      // Should not throw, return null instead
-      const result = await provider.createPullRequest(
-        'https://github.com/org/repo',
-        filesToUpdate,
-        templateInfo,
-        null,
-      );
-
-      expect(result).toBeNull();
+      await expect(
+        provider.createPullRequest(
+          'https://github.com/org/repo',
+          filesToUpdate,
+          templateInfo,
+          null,
+        ),
+      ).rejects.toThrow('GitHub authentication failed');
     });
   });
 });

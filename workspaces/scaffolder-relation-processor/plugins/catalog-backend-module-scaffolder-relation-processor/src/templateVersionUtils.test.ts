@@ -573,13 +573,16 @@ describe('templateVersionUtils', () => {
         items: entities,
       });
 
-      // Mock PR creation returning a URL
-      const prUrls = new Map([
-        ['service-a', 'https://github.com/org/repo/pull/123'],
+      // Mock PR creation returning a success result
+      const prResults = new Map([
+        [
+          'service-a',
+          { success: true, url: 'https://github.com/org/repo/pull/123' },
+        ],
       ]);
       (
         pullRequestsModule.handleTemplateUpdatePullRequest as jest.Mock
-      ).mockResolvedValue(prUrls);
+      ).mockResolvedValue(prResults);
 
       await handleTemplateUpdateNotifications(
         mockCatalogClient,
@@ -609,7 +612,7 @@ describe('templateVersionUtils', () => {
       });
     });
 
-    it('should use catalog URL when no PR was created for entity', async () => {
+    it('should not send notification when PR creation returns empty map (no changes)', async () => {
       const entities = [
         createMockEntity('service-a', 'Component', 'default', [
           'user:default/john',
@@ -620,7 +623,7 @@ describe('templateVersionUtils', () => {
         items: entities,
       });
 
-      // Mock PR creation returning empty map (no PRs created)
+      // Mock PR creation returning empty map (no PRs created - no changes for any entity)
       (
         pullRequestsModule.handleTemplateUpdatePullRequest as jest.Mock
       ).mockResolvedValue(new Map());
@@ -637,14 +640,265 @@ describe('templateVersionUtils', () => {
         mockConfig,
       );
 
-      // Should use catalog URL as the notification link
+      // Should NOT send any notification since entity has no changes
+      expect(mockNotificationService.send).not.toHaveBeenCalled();
+    });
+
+    it('should use default message with error prefix when PR creation fails', async () => {
+      const entities = [
+        createMockEntity('service-a', 'Component', 'default', [
+          'user:default/john',
+        ]),
+      ];
+
+      mockCatalogClient.getEntities.mockResolvedValue({
+        items: entities,
+      });
+
+      // Mock PR creation returning a failure result
+      const prResults = new Map([
+        [
+          'service-a',
+          { success: false, error: 'Repository permissions denied' },
+        ],
+      ]);
+      (
+        pullRequestsModule.handleTemplateUpdatePullRequest as jest.Mock
+      ).mockResolvedValue(prResults);
+
+      await handleTemplateUpdateNotifications(
+        mockCatalogClient,
+        mockNotificationService,
+        mockAuthService,
+        mockProcessorConfigWithPRsEnabled,
+        payload,
+        mockLogger,
+        mockUrlReader,
+        mockVcsRegistry,
+        mockConfig,
+      );
+
+      // Should use default message with error prefix
+      expect(mockNotificationService.send).toHaveBeenCalledWith({
+        recipients: {
+          type: 'entity',
+          entityRef: 'user:default/john',
+        },
+        payload: {
+          title: 'Service-a is out of sync with template',
+          description: expect.stringContaining(
+            'Failed to create template update PR: Repository permissions denied',
+          ),
+          link: '/catalog/default/component/service-a',
+        },
+      });
+
+      // Should also contain the default description
       expect(mockNotificationService.send).toHaveBeenCalledWith({
         recipients: {
           type: 'entity',
           entityRef: 'user:default/john',
         },
         payload: expect.objectContaining({
+          description: expect.stringContaining(
+            'Review and update your entity to stay in sync with the template',
+          ),
+        }),
+      });
+    });
+
+    it('should use default message even when custom message is configured if PR creation fails', async () => {
+      const entities = [
+        createMockEntity('service-a', 'Component', 'default', [
+          'user:default/john',
+        ]),
+      ];
+
+      mockCatalogClient.getEntities.mockResolvedValue({
+        items: entities,
+      });
+
+      // Mock PR creation returning a failure result
+      const prResults = new Map([
+        ['service-a', { success: false, error: 'Authentication failed' }],
+      ]);
+      (
+        pullRequestsModule.handleTemplateUpdatePullRequest as jest.Mock
+      ).mockResolvedValue(prResults);
+
+      const customConfig = {
+        notifications: {
+          templateUpdate: {
+            enabled: true,
+            message: {
+              title: 'Custom title for $ENTITY_DISPLAY_NAME',
+              description: 'Custom description with PR link: $PR_LINK',
+            },
+          },
+        },
+        pullRequests: {
+          templateUpdate: {
+            enabled: true,
+          },
+        },
+      };
+
+      await handleTemplateUpdateNotifications(
+        mockCatalogClient,
+        mockNotificationService,
+        mockAuthService,
+        customConfig,
+        payload,
+        mockLogger,
+        mockUrlReader,
+        mockVcsRegistry,
+        mockConfig,
+      );
+
+      // Should use DEFAULT message (not custom) with error prefix
+      expect(mockNotificationService.send).toHaveBeenCalledWith({
+        recipients: {
+          type: 'entity',
+          entityRef: 'user:default/john',
+        },
+        payload: {
+          title: 'Service-a is out of sync with template',
+          description: expect.stringContaining(
+            'Failed to create template update PR: Authentication failed',
+          ),
           link: '/catalog/default/component/service-a',
+        },
+      });
+    });
+
+    it('should skip notification for entities with no changes when PRs are enabled', async () => {
+      const entities = [
+        createMockEntity('service-a', 'Component', 'default', [
+          'user:default/john',
+        ]),
+        createMockEntity('service-b', 'Component', 'default', [
+          'user:default/jane',
+        ]),
+        createMockEntity('service-c', 'Component', 'default', [
+          'user:default/bob',
+        ]),
+      ];
+
+      mockCatalogClient.getEntities.mockResolvedValue({
+        items: entities,
+      });
+
+      // Mock PR creation: only service-a has a PR, service-b and service-c have no changes
+      const prResults = new Map([
+        [
+          'service-a',
+          { success: true, url: 'https://github.com/org/repo/pull/123' },
+        ],
+      ]);
+      (
+        pullRequestsModule.handleTemplateUpdatePullRequest as jest.Mock
+      ).mockResolvedValue(prResults);
+
+      await handleTemplateUpdateNotifications(
+        mockCatalogClient,
+        mockNotificationService,
+        mockAuthService,
+        mockProcessorConfigWithPRsEnabled,
+        payload,
+        mockLogger,
+        mockUrlReader,
+        mockVcsRegistry,
+        mockConfig,
+      );
+
+      // Should only send notification for service-a (the one with a PR)
+      expect(mockNotificationService.send).toHaveBeenCalledTimes(1);
+      expect(mockNotificationService.send).toHaveBeenCalledWith({
+        recipients: {
+          type: 'entity',
+          entityRef: 'user:default/john',
+        },
+        payload: expect.objectContaining({
+          link: 'https://github.com/org/repo/pull/123',
+        }),
+      });
+    });
+
+    it('should send notifications to all entities when PRs are disabled', async () => {
+      const entities = [
+        createMockEntity('service-a', 'Component', 'default', [
+          'user:default/john',
+        ]),
+        createMockEntity('service-b', 'Component', 'default', [
+          'user:default/jane',
+        ]),
+      ];
+
+      mockCatalogClient.getEntities.mockResolvedValue({
+        items: entities,
+      });
+
+      // PRs are disabled, so no prResults
+      await handleTemplateUpdateNotifications(
+        mockCatalogClient,
+        mockNotificationService,
+        mockAuthService,
+        mockProcessorConfigWithNotificationsEnabled, // PRs disabled in this config
+        payload,
+        mockLogger,
+        mockUrlReader,
+        mockVcsRegistry,
+        mockConfig,
+      );
+
+      // Should send notifications to all entities
+      expect(mockNotificationService.send).toHaveBeenCalledTimes(2);
+    });
+
+    it('should send notification for failed PR even if other entities have no changes', async () => {
+      const entities = [
+        createMockEntity('service-a', 'Component', 'default', [
+          'user:default/john',
+        ]),
+        createMockEntity('service-b', 'Component', 'default', [
+          'user:default/jane',
+        ]),
+      ];
+
+      mockCatalogClient.getEntities.mockResolvedValue({
+        items: entities,
+      });
+
+      // service-a had PR creation failure, service-b has no changes (not in map)
+      const prResults = new Map([
+        ['service-a', { success: false, error: 'Permission denied' }],
+      ]);
+      (
+        pullRequestsModule.handleTemplateUpdatePullRequest as jest.Mock
+      ).mockResolvedValue(prResults);
+
+      await handleTemplateUpdateNotifications(
+        mockCatalogClient,
+        mockNotificationService,
+        mockAuthService,
+        mockProcessorConfigWithPRsEnabled,
+        payload,
+        mockLogger,
+        mockUrlReader,
+        mockVcsRegistry,
+        mockConfig,
+      );
+
+      // Should only send notification for service-a (failed PR)
+      // service-b should be skipped (no changes)
+      expect(mockNotificationService.send).toHaveBeenCalledTimes(1);
+      expect(mockNotificationService.send).toHaveBeenCalledWith({
+        recipients: {
+          type: 'entity',
+          entityRef: 'user:default/john',
+        },
+        payload: expect.objectContaining({
+          description: expect.stringContaining('Permission denied'),
         }),
       });
     });

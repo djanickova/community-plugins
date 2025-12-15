@@ -43,11 +43,38 @@ export type TemplateInfo = {
 };
 
 /**
- * Result of a pull request creation
+ * Result of a successful pull request creation
  *
  * @internal
  */
-export interface PullRequestResult {
+export interface PullRequestSuccess {
+  success: true;
+  url: string;
+}
+
+/**
+ * Result of a failed pull request creation
+ *
+ * @internal
+ */
+export interface PullRequestFailure {
+  success: false;
+  error: string;
+}
+
+/**
+ * Result of a pull request creation attempt (used for aggregating results)
+ *
+ * @internal
+ */
+export type PullRequestResult = PullRequestSuccess | PullRequestFailure;
+
+/**
+ * Successful pull request creation result returned by VCS providers
+ *
+ * @internal
+ */
+export interface CreatedPullRequest {
   url: string;
 }
 
@@ -93,14 +120,15 @@ export interface VcsProvider {
    * @param filesToUpdate - Map of file paths to updated content or null for deletions
    * @param templateInfo - Template information including versions and component name
    * @param reviewer - Optional username to request review from
-   * @returns PullRequestResult containing the PR URL, or null if creation failed
+   * @returns CreatedPullRequest containing the PR URL
+   * @throws Error if PR creation fails
    */
   createPullRequest(
     repoUrl: string,
     filesToUpdate: Map<string, string | null>,
     templateInfo: TemplateInfo,
     reviewer: string | null,
-  ): Promise<PullRequestResult | null>;
+  ): Promise<CreatedPullRequest>;
 
   /**
    * Gets the reviewer username from the scaffolded entity's owner

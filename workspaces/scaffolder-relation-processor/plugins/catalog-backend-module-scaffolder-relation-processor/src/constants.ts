@@ -79,6 +79,13 @@ export const DEFAULT_NOTIFICATION_TITLE_WITH_PR = `${ENTITY_DISPLAY_NAME_TEMPLAT
 export const DEFAULT_NOTIFICATION_DESCRIPTION_WITH_PR = `The template used to create ${ENTITY_DISPLAY_NAME_TEMPLATE_VAR} has been updated to a new version. A pull request has been created to sync the changes: ${PR_LINK_TEMPLATE_VAR}`;
 
 /**
+ * Prefix for notification description when PR creation fails
+ *
+ * @public
+ */
+export const PR_CREATION_FAILED_PREFIX = 'Failed to create template update PR';
+
+/**
  * A relation from a scaffolder template entity to the entity it generated.
  * Reverse direction of {@link RELATION_SCAFFOLDED_FROM}
  *
