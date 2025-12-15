@@ -29,7 +29,9 @@ describe('VcsProviderRegistry', () => {
         ? entity.metadata.annotations['backstage.io/source-location']
         : null,
     parseUrl: () => ({ owner: 'test', repo: 'test' }),
-    createPullRequest: async () => null,
+    createPullRequest: async () => ({
+      url: 'https://github.com/test/test/pull/1',
+    }),
     getReviewerFromOwner: async () => null,
   };
 
@@ -43,7 +45,9 @@ describe('VcsProviderRegistry', () => {
         ? entity.metadata.annotations['backstage.io/source-location']
         : null,
     parseUrl: () => ({ owner: 'test', repo: 'test' }),
-    createPullRequest: async () => null,
+    createPullRequest: async () => ({
+      url: 'https://gitlab.com/test/test/-/merge_requests/1',
+    }),
     getReviewerFromOwner: async () => null,
   };
 
