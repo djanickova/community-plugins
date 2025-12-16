@@ -33,6 +33,7 @@ import {
   ENTITY_DISPLAY_NAME_TEMPLATE_VAR,
   PR_CREATION_FAILED_PREFIX,
   PR_LINK_TEMPLATE_VAR,
+  TEMPLATE_UPDATE_PRS_DOCS_URL,
   TEMPLATE_VERSION_UPDATED_TOPIC,
 } from './constants';
 import { ScaffolderRelationProcessorConfig } from './types';
@@ -146,7 +147,7 @@ function buildNotificationPayload(
       entityNameRegex,
       entityName,
     );
-    const description = `${PR_CREATION_FAILED_PREFIX}: ${prResult.error}. ${baseDescription}`;
+    const description = `${PR_CREATION_FAILED_PREFIX}: ${prResult.error}. ${baseDescription} For more information, see the documentation: ${TEMPLATE_UPDATE_PRS_DOCS_URL}`;
 
     return { title, description, link: catalogUrl };
   }

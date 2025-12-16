@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { TEMPLATE_UPDATE_PRS_DOCS_URL } from '../../../constants';
 import { TemplateInfo } from '../VcsProvider';
 
 /**
@@ -93,13 +94,15 @@ export function createTemplateUpgradePrBody(
   templateInfo: TemplateInfo,
   filesCount: number,
 ): string {
-  return `This pull request was automatically created by [scaffolder-relation-processor](${SCAFFOLDER_RELATION_PROCESSOR_URL}) in order to keep the scaffolded repository in sync with the template.
+  return `This pull request was automatically created by [scaffolder-relation-processor](${SCAFFOLDER_RELATION_PROCESSOR_URL}) because you have the Template Update PRs feature enabled in your Backstage configuration.
     
 **Template Source:** ${templateInfo.owner}/${templateInfo.repo}
 
 **Updated Files:** ${filesCount} file(s) have been updated to match the latest template version.
 
-⚠️ **Please manually review the changes to ensure they are correct before merging.**`;
+⚠️ **Please manually review the changes to ensure they are correct before merging.**
+
+For more information about this feature, including limitations and troubleshooting, see the [Template Update PRs documentation](${TEMPLATE_UPDATE_PRS_DOCS_URL}).`;
 }
 
 /**

@@ -86,6 +86,14 @@ export const DEFAULT_NOTIFICATION_DESCRIPTION_WITH_PR = `The template used to cr
 export const PR_CREATION_FAILED_PREFIX = 'Failed to create template update PR';
 
 /**
+ * Documentation URL for the Template Update PRs feature
+ *
+ * @public
+ */
+export const TEMPLATE_UPDATE_PRS_DOCS_URL =
+  'https://github.com/backstage/community-plugins/tree/main/workspaces/scaffolder-relation-processor/plugins/catalog-backend-module-scaffolder-relation-processor/docs/templateUpdatePRs.md';
+
+/**
  * A relation from a scaffolder template entity to the entity it generated.
  * Reverse direction of {@link RELATION_SCAFFOLDED_FROM}
  *
