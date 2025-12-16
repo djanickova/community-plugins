@@ -156,6 +156,13 @@ Common failure reasons:
 
 ## Limitations
 
+- **Template variable resolution**: During file comparison, the plugin attempts to replace template variables (e.g., `${{ values.name }}`) with the actual values from the scaffolded repository by matching YAML keys. However, this has limitations:
+
+  - If a key cannot be matched between the template and scaffolded file, the raw template syntax will appear in the PR and must be resolved manually
+  - Variables that were left empty during scaffolding may appear as differences
+  - Only simple key-value patterns are matched; inline variables or complex nested structures may not be resolved correctly
+  - Jinja2 conditionals (`{% if %}`, `{% endif %}`, etc.) are automatically stripped, but conditional content may still cause unexpected differences
+
 - **File-based comparison only**: The plugin compares files at the repository root level based on the entity's managed-by-location annotation. It does not handle complex template structures with multiple directories.
 
 - **No conflict resolution**: If the scaffolded repository has diverged significantly from the template, the PR may contain merge conflicts that need manual resolution.
