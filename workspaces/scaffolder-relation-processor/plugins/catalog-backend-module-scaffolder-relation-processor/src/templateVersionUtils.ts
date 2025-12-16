@@ -108,6 +108,70 @@ function createEntityCatalogUrl(entity: Entity): string {
 }
 
 /**
+ * Builds a notification payload based on entity, config, and PR result
+ *
+ * @param entityName - Display name of the entity
+ * @param catalogUrl - URL to the entity in the catalog
+ * @param config - Configuration for notification title and description
+ * @param prResult - Optional PR creation result for this entity
+ * @returns NotificationPayload with title, description, and link
+ *
+ * @internal
+ */
+function buildNotificationPayload(
+  entityName: string,
+  catalogUrl: string,
+  config: ScaffolderRelationProcessorConfig,
+  prResult?: PullRequestResult,
+): NotificationPayload {
+  const entityNameRegex = new RegExp(
+    ENTITY_DISPLAY_NAME_TEMPLATE_VAR.replace(/\$/g, '\\$'),
+    'g',
+  );
+  const prLinkRegex = new RegExp(
+    PR_LINK_TEMPLATE_VAR.replace(/\$/g, '\\$'),
+    'g',
+  );
+
+  // Check if PR creation failed - use default message with error prefix
+  if (prResult && !prResult.success) {
+    const titleReplaced = DEFAULT_NOTIFICATION_TITLE.replace(
+      entityNameRegex,
+      entityName,
+    );
+    const title =
+      titleReplaced.charAt(0).toUpperCase() + titleReplaced.slice(1);
+
+    const baseDescription = DEFAULT_NOTIFICATION_DESCRIPTION.replace(
+      entityNameRegex,
+      entityName,
+    );
+    const description = `${PR_CREATION_FAILED_PREFIX}: ${prResult.error}. ${baseDescription}`;
+
+    return { title, description, link: catalogUrl };
+  }
+
+  // Normal flow: use configured message
+  const messageConfig = config.notifications?.templateUpdate?.message;
+
+  const titleReplaced =
+    messageConfig?.title.replace(entityNameRegex, entityName) || '';
+  const title = titleReplaced.charAt(0).toUpperCase() + titleReplaced.slice(1);
+
+  let description =
+    messageConfig?.description.replace(entityNameRegex, entityName) || '';
+
+  // Replace PR link placeholder with PR URL if available, otherwise remove it
+  if (prResult?.success) {
+    description = description.replace(prLinkRegex, prResult.url);
+    return { title, description, link: prResult.url };
+  }
+
+  description = description.replace(prLinkRegex, '').trim();
+  return { title, description, link: catalogUrl };
+}
+
+/**
  * Sends notifications to owners for each entity that should be updated
  *
  * @param notifications - Notification service to send notifications
@@ -144,66 +208,18 @@ async function sendNotificationsToOwners(
       };
 
       const catalogUrl = createEntityCatalogUrl(entity);
-
       const entityName = entity.metadata.title ?? entity.metadata.name;
-      const entityNameRegex = new RegExp(
-        ENTITY_DISPLAY_NAME_TEMPLATE_VAR.replace(/\$/g, '\\$'),
-        'g',
+
+      const payload = buildNotificationPayload(
+        entityName,
+        catalogUrl,
+        config,
+        prResult,
       );
-      const prLinkRegex = new RegExp(
-        PR_LINK_TEMPLATE_VAR.replace(/\$/g, '\\$'),
-        'g',
-      );
-
-      let title: string;
-      let description: string;
-      let link: string;
-
-      // Check if PR creation failed - use default message with error prefix
-      if (prResult && !prResult.success) {
-        // Use default title and description with error prefix
-        const titleReplaced = DEFAULT_NOTIFICATION_TITLE.replace(
-          entityNameRegex,
-          entityName,
-        );
-        title = titleReplaced.charAt(0).toUpperCase() + titleReplaced.slice(1);
-
-        const baseDescription = DEFAULT_NOTIFICATION_DESCRIPTION.replace(
-          entityNameRegex,
-          entityName,
-        );
-        description = `${PR_CREATION_FAILED_PREFIX}: ${prResult.error}. ${baseDescription}`;
-        link = catalogUrl;
-      } else {
-        // Normal flow: use configured message
-        const messageConfig = config.notifications?.templateUpdate?.message;
-
-        const titleReplaced =
-          messageConfig?.title.replace(entityNameRegex, entityName) || '';
-        title = titleReplaced.charAt(0).toUpperCase() + titleReplaced.slice(1);
-
-        description =
-          messageConfig?.description.replace(entityNameRegex, entityName) || '';
-
-        // Replace PR link placeholder with PR URL if available, otherwise remove it
-        if (prResult?.success) {
-          description = description.replace(prLinkRegex, prResult.url);
-          link = prResult.url;
-        } else {
-          description = description.replace(prLinkRegex, '').trim();
-          link = catalogUrl;
-        }
-      }
-
-      const notificationPayload: NotificationPayload = {
-        title,
-        description,
-        link,
-      };
 
       await notifications.send({
         recipients,
-        payload: notificationPayload,
+        payload,
       });
     }
   }
