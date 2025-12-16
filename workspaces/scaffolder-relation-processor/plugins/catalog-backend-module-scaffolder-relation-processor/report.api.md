@@ -101,6 +101,10 @@ export interface ScaffolderRelationProcessorConfig {
 }
 
 // @public
+export const TEMPLATE_UPDATE_PRS_DOCS_URL =
+  'https://github.com/backstage/community-plugins/tree/main/workspaces/scaffolder-relation-processor/plugins/catalog-backend-module-scaffolder-relation-processor/docs/templateUpdatePRs.md';
+
+// @public
 export const TEMPLATE_VERSION_UPDATED_TOPIC =
   'relationProcessor.template:version_updated';
 
